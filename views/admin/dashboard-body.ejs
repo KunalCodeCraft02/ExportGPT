@@ -1,0 +1,109 @@
+<div class="page-title">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="muted">Review pending registrations, manage leads, and monitor marketplace activity.</div>
+  </div>
+</div>
+
+<nav class="nav">
+  <a href="/admin/profiles?role=all&status=pending">Pending profiles</a>
+  <a href="/admin/leads?status=pending">Pending leads</a>
+  <a href="/admin/users">Users</a>
+</nav>
+
+<section class="grid">
+  <div class="card">
+    <div class="muted">Farmers / Sellers</div>
+    <div class="stat-value"><%= stats.farmers %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Exporters</div>
+    <div class="stat-value"><%= stats.exporters %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Buyers</div>
+    <div class="stat-value"><%= stats.buyers %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Buyer Leads</div>
+    <div class="stat-value"><%= stats.leads %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Pending exporter profiles</div>
+    <div class="stat-value"><%= stats.pendingExporters %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Pending buyer profiles</div>
+    <div class="stat-value"><%= stats.pendingBuyers %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Pending farmer profiles</div>
+    <div class="stat-value"><%= stats.pendingFarmers %></div>
+  </div>
+  <div class="card">
+    <div class="muted">Rejected profiles</div>
+    <div class="stat-value"><%= stats.rejectedProfiles %></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-header">
+    <div>
+      <h2>Lead status</h2>
+      <p class="muted">Current counts by status.</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% ["pending", "accepted", "rejected", "logistics_connected", "completed"].forEach((status) => { %>
+        <tr>
+          <td data-label="Status"><span class="badge <%= status %>"><%= status.replace("_", " ") %></span></td>
+          <td data-label="Count"><strong><%= stats.leadStatusCounts[status] || 0 %></strong></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+<section class="card" style="margin-top: 18px;">
+  <div class="section-header">
+    <div>
+      <h2>Recent pending leads</h2>
+      <p class="muted">Latest farmer requests waiting for exporter response.</p>
+    </div>
+    <a href="/admin/leads?status=pending">View all</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Farmer</th>
+          <th>Exporter</th>
+          <th>Product</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (pendingLeads.length === 0) { %>
+          <tr><td colspan="5" class="muted">No pending leads yet.</td></tr>
+        <% } %>
+        <% pendingLeads.forEach((lead) => { %>
+          <tr>
+            <td data-label="Created"><%= new Date(lead.createdAt).toLocaleString() %></td>
+            <td data-label="Farmer"><%= lead.farmerId?.name || "Unknown" %></td>
+            <td data-label="Exporter"><%= lead.exporterId?.companyName || "Unknown" %></td>
+            <td data-label="Product"><%= lead.product || "Not listed" %></td>
+            <td data-label="Message"><%= lead.message %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>

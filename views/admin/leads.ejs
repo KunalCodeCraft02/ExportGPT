@@ -1,0 +1,87 @@
+<% const adminUser = typeof admin !== "undefined" ? admin : null; %>
+<%- include("../partials/admin-shell", { title: title, admin: adminUser }) %>
+<div class="page-title">
+  <div>
+    <h1>Buyer Leads</h1>
+    <div class="muted">Review farmer-to-exporter requests and update lead status.</div>
+  </div>
+</div>
+
+<nav class="nav">
+  <a href="/admin">Dashboard</a>
+  <a href="/admin/profiles?role=all&status=pending">Profiles</a>
+  <a href="/admin/users">Users</a>
+</nav>
+
+<form class="filters" method="get" action="/admin/leads">
+  <select name="status">
+    <% statuses.forEach((item) => { %>
+      <option value="<%= item %>" <%= item === status ? "selected" : "" %>><%= item.replace("_", " ") %></option>
+    <% }) %>
+  </select>
+  <button type="submit">Apply filter</button>
+</form>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Created</th>
+        <th>Farmer</th>
+        <th>Exporter</th>
+        <th>Product</th>
+        <th>Message</th>
+        <th>Status</th>
+        <th>Admin Notes</th>
+        <th>Update</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (leads.length === 0) { %>
+        <tr><td colspan="8" class="muted">No leads found for this filter.</td></tr>
+      <% } %>
+      <% leads.forEach((lead) => { %>
+        <tr>
+          <td data-label="Created"><%= new Date(lead.createdAt).toLocaleString() %></td>
+          <td data-label="Farmer">
+            <strong><%= lead.farmerId?.name || "Unknown" %></strong><br>
+            <span class="small muted"><%= lead.farmerId?.phone || "" %></span>
+          </td>
+          <td data-label="Exporter">
+            <strong><%= lead.exporterId?.companyName || "Unknown" %></strong><br>
+            <span class="small muted"><%= lead.exporterId?.phone || "" %></span>
+          </td>
+          <td data-label="Product"><%= lead.product || "Not listed" %></td>
+          <td data-label="Message"><%= lead.message %></td>
+          <td data-label="Status"><span class="badge <%= lead.status %>"><%= lead.status.replace("_", " ") %></span></td>
+          <td data-label="Admin Notes">
+            <form method="post" action="/admin/leads/<%= lead._id %>/status">
+              <input type="hidden" name="status" value="<%= lead.status %>">
+              <textarea name="notes" placeholder="Optional notes"><%= lead.adminNotes || "" %></textarea>
+              <button class="secondary" type="submit" style="margin-top:8px;">Save notes</button>
+            </form>
+          </td>
+          <td class="actions" data-label="Update">
+            <form method="post" action="/admin/leads/<%= lead._id %>/status">
+              <input type="hidden" name="notes" value="<%= lead.adminNotes || "" %>">
+              <select name="status" style="margin-bottom:8px;">
+                <% statuses.forEach((item) => { %>
+                  <option value="<%= item %>" <%= item === lead.status ? "selected" : "" %>><%= item.replace("_", " ") %></option>
+                <% }) %>
+              </select>
+              <button type="submit">Update</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<div class="pagination">
+  <% if (page > 1) { %><a class="button secondary" href="/admin/leads?status=<%= status %>&page=<%= page - 1 %>">Previous</a><% } %>
+  <% if (hasNextPage) { %><a class="button" href="/admin/leads?status=<%= status %>&page=<%= page + 1 %>">Next</a><% } %>
+</div>
+  </main>
+</body>
+</html>

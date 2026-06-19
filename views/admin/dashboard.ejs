@@ -1,0 +1,6 @@
+<% const adminUser = typeof admin !== "undefined" ? admin : null; %>
+<%- include("../partials/admin-shell", { title: title, admin: adminUser }) %>
+<%- include("./dashboard-body", { stats, pendingLeads }) %>
+  </main>
+</body>
+</html>

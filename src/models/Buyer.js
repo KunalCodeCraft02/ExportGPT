@@ -1,24 +1,24 @@
 import mongoose from "mongoose";
 
-const farmerSchema = new mongoose.Schema(
+const buyerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true, index: true },
     email: { type: String, trim: true, lowercase: true },
-    village: { type: String, trim: true },
-    district: { type: String, trim: true, index: true },
-    state: { type: String, required: true, trim: true, index: true },
+    companyName: { type: String, trim: true },
     country: { type: String, required: true, trim: true, index: true },
+    state: { type: String, trim: true, index: true },
+    city: { type: String, trim: true },
     preferredLanguage: {
       type: String,
       enum: ["english", "hindi", "marathi"],
       default: "english",
     },
-    products: { type: [String], default: [], index: true },
-    quantity: { type: String, trim: true },
-    expectedPrice: { type: String, trim: true },
-    harvestDate: { type: String, trim: true },
-    packagingType: { type: String, trim: true },
+    productsNeeded: { type: [String], default: [], index: true },
+    quantityRequired: { type: String, trim: true },
+    targetPrice: { type: String, trim: true },
+    deliveryTimeline: { type: String, trim: true },
+    paymentTerms: { type: String, trim: true },
     verified: { type: Boolean, default: false },
     verificationStatus: {
       type: String,
@@ -39,8 +39,7 @@ const farmerSchema = new mongoose.Schema(
   }
 );
 
-farmerSchema.index({ products: "text", name: "text", district: "text", state: "text" });
-farmerSchema.index({ phone: 1, country: 1 });
-farmerSchema.index({ verificationStatus: 1, createdAt: -1 });
+buyerSchema.index({ productsNeeded: "text", companyName: "text", country: "text" });
+buyerSchema.index({ verificationStatus: 1, createdAt: -1 });
 
-export default mongoose.model("Farmer", farmerSchema);
+export default mongoose.model("Buyer", buyerSchema);

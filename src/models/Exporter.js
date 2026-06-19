@@ -10,6 +10,11 @@ const exporterSchema = new mongoose.Schema(
     city: { type: String, trim: true },
     state: { type: String, trim: true, index: true },
     country: { type: String, required: true, trim: true, index: true },
+    preferredLanguage: {
+      type: String,
+      enum: ["english", "hindi", "marathi"],
+      default: "english",
+    },
     iecNumber: { type: String, trim: true, uppercase: true, index: true },
     website: { type: String, trim: true },
     products: { type: [String], default: [], index: true },
@@ -18,6 +23,19 @@ const exporterSchema = new mongoose.Schema(
     certifications: { type: [String], default: [] },
     experience: { type: Number, min: 0 },
     verified: { type: Boolean, default: false },
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    rejectionReason: { type: String, trim: true },
+    reviewedAt: { type: Date },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AdminUser",
+      default: null,
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
@@ -26,5 +44,6 @@ const exporterSchema = new mongoose.Schema(
 
 exporterSchema.index({ products: "text", companyName: "text", name: "text", country: "text" });
 exporterSchema.index({ companyName: 1, country: 1 });
+exporterSchema.index({ verificationStatus: 1, createdAt: -1 });
 
 export default mongoose.model("Exporter", exporterSchema);

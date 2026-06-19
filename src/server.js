@@ -1,14 +1,39 @@
 import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
+import session from "express-session";
 import connectDB from "./config/db.js";
 import whatsappRoutes from "./routes/whatsapp.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import { scheduleDailyMarketUpdate } from "./jobs/dailyMarketUpdate.job.js";
 import logger from "./utils/logger.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "..", "views"));
+
+app.use(
+  session({
+    secret: process.env.ADMIN_SESSION_SECRET || "exportconnect-admin-session-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 8,
+    },
+  })
+);
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -19,6 +44,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/", whatsappRoutes);
+app.use("/admin", adminRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
@@ -37,12 +63,11 @@ async function findAvailablePort(startPort) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => {
-      resolve(findAvailablePort(parseInt(startPort) + 1));
       server.close();
+      findAvailablePort(parseInt(startPort) + 1).then(resolve);
     });
     server.once("listening", () => {
-      server.close();
-      resolve(startPort);
+      server.close(() => resolve(startPort));
     });
     server.listen(startPort);
   });
@@ -50,10 +75,12 @@ async function findAvailablePort(startPort) {
 
 const startServer = async () => {
   await connectDB();
+  scheduleDailyMarketUpdate();
 
   const availablePort = await findAvailablePort(PORT);
   app.listen(availablePort, () => {
-    if (availablePort !== parseInt(PORT)) {
+    const requestedPort = parseInt(PORT);
+    if (availablePort !== requestedPort) {
       logger.warn(`Port ${PORT} was in use, using port ${availablePort}`);
     }
 

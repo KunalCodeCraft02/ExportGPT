@@ -16,6 +16,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "en",
     },
+    preferredLanguage: {
+      type: String,
+      enum: ["english", "hindi", "marathi"],
+      default: "english",
+    },
     location: {
       type: String,
       default: "India",

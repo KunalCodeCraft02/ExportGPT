@@ -60,7 +60,7 @@ export function extractProduct(message, fallbackProducts = []) {
 }
 
 export async function searchExporters({ product, page = 1, limit = PAGE_SIZE } = {}) {
-  const query = buildProductQuery(product, ["products", "companyName", "name"]);
+  const query = buildProductQuery(product, ["products", "companyName", "name"], buildApprovedQuery());
   const total = await Exporter.countDocuments(query);
   const exporters = await Exporter.find(query)
     .sort({ verified: -1, createdAt: -1 })
@@ -78,7 +78,7 @@ export async function searchExporters({ product, page = 1, limit = PAGE_SIZE } =
 }
 
 export async function searchFarmers({ product, page = 1, limit = PAGE_SIZE } = {}) {
-  const query = buildProductQuery(product, ["products", "name", "district", "state"]);
+  const query = buildProductQuery(product, ["products", "name", "district", "state"], buildApprovedQuery());
   const total = await Farmer.countDocuments(query);
   const farmers = await Farmer.find(query)
     .sort({ createdAt: -1 })
@@ -119,13 +119,18 @@ export function formatFarmerResults(searchResult) {
   return `🧑‍🌾 *Farmers / Sellers Found* (${total})\n\n${cards}${pagination}`;
 }
 
-function buildProductQuery(product, fields) {
-  if (!product) return {};
+function buildProductQuery(product, fields, baseQuery = {}) {
+  if (!product) return baseQuery;
 
   const regex = new RegExp(escapeRegex(product), "i");
   return {
+    ...baseQuery,
     $or: fields.map((field) => ({ [field]: { $regex: regex } })),
   };
+}
+
+function buildApprovedQuery() {
+  return { $or: [{ verified: true }, { verificationStatus: "approved" }] };
 }
 
 function formatExporterCard(exporter, index) {

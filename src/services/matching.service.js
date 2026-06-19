@@ -61,7 +61,7 @@ export function extractProduct(message, fallbackProducts = []) {
 }
 
 export async function searchExporters({ product, page = 1, limit = PAGE_SIZE } = {}) {
-  const query = buildProductQuery(product, ["products", "companyName", "name"]);
+  const query = buildProductQuery(product, ["products", "companyName", "name"], buildApprovedQuery());
   const total = await Exporter.countDocuments(query);
   const exporters = await Exporter.find(query)
     .sort({ verified: -1, createdAt: -1 })
@@ -79,7 +79,7 @@ export async function searchExporters({ product, page = 1, limit = PAGE_SIZE } =
 }
 
 export async function searchFarmers({ product, page = 1, limit = PAGE_SIZE } = {}) {
-  const query = buildProductQuery(product, ["products", "name", "district", "state"]);
+  const query = buildProductQuery(product, ["products", "name", "district", "state"], buildApprovedQuery());
   const total = await Farmer.countDocuments(query);
   const farmers = await Farmer.find(query)
     .sort({ createdAt: -1 })
@@ -103,9 +103,12 @@ export async function formatExporterResults(searchResult) {
   }
 
   const cards = results.map((exporter, index) => formatExporterCard(exporter, index + 1)).join("\n\n");
+  const actionPrompt = results[0]
+    ? `\n\nReply:\n1 -> Send Request to *${results[0].companyName}*\n2 -> Next exporter\nMORE -> More results`
+    : "";
   const pagination = hasNextPage ? `\n\n📄 Page ${page} of results. Type *MORE* for the next ${limit}.` : "";
 
-  return `🏢 *Exporters Found* (${total})\n\n${cards}${pagination}`;
+  return `🏢 *Exporters Found* (${total})\n\n${cards}${actionPrompt}${pagination}`;
 }
 
 export async function formatFarmerResults(searchResult) {
@@ -120,14 +123,20 @@ export async function formatFarmerResults(searchResult) {
   return `🧑‍🌾 *Farmers / Sellers Found* (${total})\n\n${cards}${pagination}`;
 }
 
-export async function storeMarketplacePage(phone, searchType, product, page = 1, sourceRole = null) {
+export async function storeMarketplacePage(phone, searchType, product, page = 1, sourceRole = null, results = []) {
+  const pageState = typeof searchType === "object" ? searchType : {
+    searchType,
+    product: product || null,
+    page,
+    sourceRole,
+  };
+
   await updateState(phone, {
     currentStep: "marketplace_page",
     tempData: {
-      searchType,
-      product: product || null,
-      page,
-      sourceRole,
+      ...pageState,
+      exporters: pageState.searchType === "exporters" ? results : undefined,
+      currentExporterIndex: 0,
     },
   });
 }
@@ -144,7 +153,7 @@ export async function formatMoreResults(phone, state) {
 
   if (searchType === "exporters") {
     const result = await searchExporters({ product, page: nextPage });
-    await storeMarketplacePage(phone, searchType, product, nextPage, pageState.sourceRole);
+    await storeMarketplacePage(phone, searchType, product, nextPage, pageState.sourceRole, result.results);
     return formatExporterResults(result);
   }
 
@@ -162,13 +171,18 @@ export function getProductsForRole(role, tempData = {}) {
   return tempData.products;
 }
 
-function buildProductQuery(product, fields) {
-  if (!product) return {};
+function buildProductQuery(product, fields, baseQuery = {}) {
+  if (!product) return baseQuery;
 
   const regex = new RegExp(escapeRegex(product), "i");
   return {
+    ...baseQuery,
     $or: fields.map((field) => ({ [field]: { $regex: regex } })),
   };
+}
+
+function buildApprovedQuery() {
+  return { $or: [{ verified: true }, { verificationStatus: "approved" }] };
 }
 
 function formatExporterCard(exporter, index) {
