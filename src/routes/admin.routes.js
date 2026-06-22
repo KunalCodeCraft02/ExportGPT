@@ -10,6 +10,10 @@ import {
   showLeads,
   updateLeadStatus,
   showUsers,
+  showProducts,
+  approveProduct,
+  rejectProduct,
+  deleteProduct,
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -32,5 +36,9 @@ router.post("/profiles/:type/:id/reject", requireAdmin, rejectProfile);
 router.get("/leads", requireAdmin, showLeads);
 router.post("/leads/:id/status", requireAdmin, updateLeadStatus);
 router.get("/users", requireAdmin, showUsers);
+router.get("/products", requireAdmin, showProducts);
+router.post("/products/:id/approve", requireAdmin, approveProduct);
+router.post("/products/:id/reject", requireAdmin, rejectProduct);
+router.post("/products/:id/delete", requireAdmin, deleteProduct);
 
 export default router;

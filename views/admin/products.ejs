@@ -1,0 +1,107 @@
+<% const adminUser = typeof admin !== "undefined" ? admin : null; %>
+<%- include("../partials/admin-shell", { title: title, admin: adminUser }) %>
+
+<div class="page-header">
+  <h1>Product Marketplace</h1>
+  <div class="subtitle">Manage farmer and MSME product listings.</div>
+</div>
+
+<nav class="nav-bar">
+  <a href="/admin"><span class="nav-icon">&#9632;</span> Dashboard</a>
+  <a href="/admin/profiles?role=all&status=pending"><span class="nav-icon">&#128100;</span> Profiles</a>
+  <a href="/admin/products?status=pending" class="active"><span class="nav-icon">&#128230;</span> Products</a>
+  <a href="/admin/leads?status=pending"><span class="nav-icon">&#128233;</span> Leads</a>
+  <a href="/admin/users"><span class="nav-icon">&#128101;</span> Users</a>
+</nav>
+
+<div class="section-card">
+  <form class="filters-bar" method="get" action="/admin/products">
+    <span class="filter-label">Filter by</span>
+    <select name="status">
+      <% statuses.forEach((item) => { %>
+        <option value="<%= item %>" <%= item === status ? "selected" : "" %>><%= item %></option>
+      <% }) %>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Product</th>
+          <th>Owner</th>
+          <th>Price</th>
+          <th>Category</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Views</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (products.length === 0) { %>
+          <tr>
+            <td colspan="10">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128230;</div>
+                <div class="empty-state-title">No products found</div>
+                <div class="empty-state-desc">No products match the current filter.</div>
+              </div>
+            </td>
+          </tr>
+        <% } %>
+        <% products.forEach((product) => { %>
+          <tr>
+            <td data-label="Image">
+              <% if (product.thumbnail || (product.images && product.images.length > 0)) { %>
+                <img class="product-thumb" src="<%= product.thumbnail || product.images[0] %>" alt="<%= product.productName %>">
+              <% } else { %>
+                <div class="product-thumb-placeholder">&#128247;</div>
+              <% } %>
+            </td>
+            <td data-label="Product">
+              <span class="primary-text"><%= product.productName %></span>
+              <span class="secondary-text"><%= product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? "..." : "") : "No description" %></span>
+            </td>
+            <td data-label="Owner"><span class="badge <%= product.ownerType.toLowerCase() %>"><%= product.ownerType %></span></td>
+            <td data-label="Price"><strong><%= product.price || "—" %></strong></td>
+            <td data-label="Category"><%= product.category || "—" %></td>
+            <td data-label="Location"><%= [product.district, product.state].filter(Boolean).join(", ") || "—" %></td>
+            <td data-label="Status"><span class="badge <%= product.status %>"><%= product.status %></span></td>
+            <td data-label="Views"><%= product.views || 0 %></td>
+            <td data-label="Created"><%= new Date(product.createdAt).toLocaleDateString() %></td>
+            <td data-label="Actions">
+              <% if (product.status === "pending") { %>
+                <div class="review-actions">
+                  <form method="post" action="/admin/products/<%= product._id %>/approve" onsubmit="return confirm('Approve this product and notify the owner?');">
+                    <button class="btn btn-success btn-sm" type="submit" style="width:100%;">&#10003; Approve</button>
+                  </form>
+                  <form method="post" action="/admin/products/<%= product._id %>/reject" class="reject-form">
+                    <textarea name="reason" placeholder="Rejection reason (optional)"></textarea>
+                    <button class="btn btn-danger btn-sm" type="submit" style="width:100%;">&#10007; Reject</button>
+                  </form>
+                </div>
+              <% } else { %>
+                <span class="secondary-text">Reviewed</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination">
+    <div class="pagination-info">Page <%= page %></div>
+    <div class="pagination-links">
+      <% if (page > 1) { %><a class="btn btn-outline" href="/admin/products?status=<%= status %>&page=<%= page - 1 %>">&larr; Previous</a><% } %>
+      <% if (hasNextPage) { %><a class="btn btn-primary" href="/admin/products?status=<%= status %>&page=<%= page + 1 %>">Next &rarr;</a><% } %>
+    </div>
+  </div>
+</div>
+  </main>
+</body>
+</html>

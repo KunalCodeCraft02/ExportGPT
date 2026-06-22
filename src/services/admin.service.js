@@ -5,6 +5,7 @@ import Buyer from "../models/Buyer.js";
 import BuyerLead from "../models/BuyerLead.js";
 import Exporter from "../models/Exporter.js";
 import Farmer from "../models/Farmer.js";
+import Product from "../models/Product.js";
 import User from "../models/User.js";
 import { sendLocalizedMessage } from "./whatsapp.service.js";
 import logger from "../utils/logger.js";
@@ -98,6 +99,9 @@ export async function getDashboardStats() {
     rejectedExporterProfiles,
     rejectedBuyerProfiles,
     rejectedFarmerProfiles,
+    pendingProducts,
+    approvedProducts,
+    rejectedProducts,
   ] = await Promise.all([
     Farmer.countDocuments(),
     Exporter.countDocuments(),
@@ -112,6 +116,9 @@ export async function getDashboardStats() {
     Exporter.countDocuments({ verificationStatus: "rejected" }),
     Buyer.countDocuments({ verificationStatus: "rejected" }),
     Farmer.countDocuments({ verificationStatus: "rejected" }),
+    Product.countDocuments({ status: "pending" }),
+    Product.countDocuments({ status: "approved" }),
+    Product.countDocuments({ status: "rejected" }),
   ]);
 
   const leadStatusCounts = Object.fromEntries(leads.map((item) => [item._id, item.count]));
@@ -128,6 +135,9 @@ export async function getDashboardStats() {
     pendingFarmers,
     pendingProfiles: pendingExporters + pendingBuyers + pendingFarmers,
     rejectedProfiles: rejectedExporterProfiles + rejectedBuyerProfiles + rejectedFarmerProfiles,
+    pendingProducts,
+    approvedProducts,
+    rejectedProducts,
   };
 }
 

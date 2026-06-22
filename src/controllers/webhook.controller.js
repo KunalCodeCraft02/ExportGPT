@@ -1,5 +1,7 @@
 import { sendLocalizedMessage } from "../services/whatsapp.service.js";
 import askGroq from "../services/groq.service.js";
+import path from "path";
+import { fileURLToPath } from "url";
 import BuyerLead from "../models/BuyerLead.js";
 import Farmer from "../models/Farmer.js";
 import Exporter from "../models/Exporter.js";
@@ -19,6 +21,7 @@ import {
   getState,
   updateState,
   isRegistrationStep,
+  isProductRegistrationStep,
   ROLES,
   STEPS,
 } from "../services/conversation.service.js";
@@ -35,6 +38,22 @@ import {
   fetchCommodityPrice,
   formatPriceResults,
 } from "../services/marketPrice.service.js";
+import {
+  startProductRegistration,
+  handleProductRegistrationInput,
+  handleProductImageStep,
+  handleProductImageMessage,
+  handleProductImageSkip,
+  searchProducts,
+  formatProductResults,
+  formatProductDetail,
+  PRODUCT_REGISTRATION_STEPS,
+  PRODUCT_CATEGORY_MAP,
+} from "../services/product.service.js";
+import axios from "axios";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ─── Webhook verification (GET) ───────────────────────────────────────────────
 export function verifyWebhook(req, res) {
@@ -65,6 +84,15 @@ export async function handleWebhook(req, res) {
     if (!message) return;
 
     phone = message.from;
+
+    if (message.type === "image") {
+      const mediaId = message.image?.id;
+      if (!mediaId) return;
+      const imageUrl = await getMediaUrl(mediaId);
+      if (!imageUrl) return;
+      return handleImageMessage(phone, imageUrl);
+    }
+
     const text = (message.text?.body || "").trim();
 
     if (!phone || !text) return;
@@ -156,6 +184,23 @@ async function routeMessage(phone, text) {
     return handlePriceProductReply(phone, text, state);
   }
 
+  // ── Product registration steps ──────────────────────────────────────────────
+  if (currentStep === STEPS.WAITING_FOR_PRODUCT_IMAGE) {
+    if (normalized === "SKIP") {
+      const reply = await handleProductImageSkip(phone, state);
+      return sendLocalizedMessage(phone, reply);
+    }
+    return sendLocalizedMessage(
+      phone,
+      "📸 Please send a photo, or type *SKIP* to continue without one."
+    );
+  }
+
+  if (isProductRegistrationStep(currentStep)) {
+    const reply = await handleProductRegistrationInput(phone, text, state);
+    return sendLocalizedMessage(phone, reply);
+  }
+
   if (isRegistrationStep(currentStep)) {
     const reply = await handleRegistrationInput(phone, role, text, state);
     return sendLocalizedMessage(phone, reply);
@@ -176,6 +221,23 @@ async function routeMessage(phone, text) {
   // Pagination
   if (normalized === "MORE") {
     return handleMore(phone, state);
+  }
+
+  // ── Product marketplace commands ────────────────────────────────────────────
+  if (normalized === "ADD PRODUCT") {
+    return handleAddProduct(phone, state);
+  }
+
+  if (normalized === "SHOW PRODUCTS") {
+    return handleShowProducts(phone, state);
+  }
+
+  if (normalized.startsWith("SHOW ")) {
+    return handleShowProductSearch(phone, text, state);
+  }
+
+  if (normalized.startsWith("VIEW ")) {
+    return handleViewProduct(phone, text, state);
   }
 
   // ── Daily market price commands ──────────────────────────────────────────
@@ -577,5 +639,141 @@ async function handleMore(phone, state) {
     const formatted = await formatFarmerResults(result);
     await storeMarketplacePage(phone, "farmers", product, nextPage, state.role);
     return sendLocalizedMessage(phone, formatted);
+  }
+
+  if (searchType === "products") {
+    const result = await searchProducts({ product, page: nextPage });
+    const formatted = formatProductResults(result);
+    await updateState(phone, {
+      currentStep: STEPS.MARKETPLACE_PAGE,
+      tempData: {
+        ...(state.tempData || {}),
+        searchType: "products",
+        product,
+        page: nextPage,
+        products: result.results,
+      },
+    });
+    return sendLocalizedMessage(phone, formatted);
+  }
+}
+
+// ─── Product marketplace handlers ────────────────────────────────────────────
+async function handleAddProduct(phone, state) {
+  if (!state.role) {
+    return sendLocalizedMessage(
+      phone,
+      "Please complete your registration first before adding products.\n\nType *REGISTER* to get started."
+    );
+  }
+  const reply = await startProductRegistration(phone, state);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleShowProducts(phone, state) {
+  const result = await searchProducts({ product: null, page: 1 });
+  const formatted = formatProductResults(result);
+
+  await updateState(phone, {
+    currentStep: STEPS.MARKETPLACE_PAGE,
+    tempData: {
+      ...(state.tempData || {}),
+      searchType: "products",
+      product: null,
+      page: 1,
+      products: result.results,
+    },
+  });
+
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleShowProductSearch(phone, text, state) {
+  const searchTerm = text.trim().replace(/^SHOW\s+/i, "").trim();
+  if (!searchTerm) {
+    return handleShowProducts(phone, state);
+  }
+
+  const result = await searchProducts({ product: searchTerm, page: 1 });
+  const formatted = formatProductResults(result);
+
+  await updateState(phone, {
+    currentStep: STEPS.MARKETPLACE_PAGE,
+    tempData: {
+      ...(state.tempData || {}),
+      searchType: "products",
+      product: searchTerm,
+      page: 1,
+      products: result.results,
+    },
+  });
+
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleViewProduct(phone, text, state) {
+  const number = parseInt(text.trim().replace(/^VIEW\s+/i, ""), 10);
+  if (isNaN(number) || number < 1) {
+    return sendLocalizedMessage(phone, "Please type *VIEW 1* or *VIEW 2* to see product details.");
+  }
+
+  const products = state.tempData?.products || [];
+  const product = products[number - 1];
+
+  if (!product) {
+    return sendLocalizedMessage(
+      phone,
+      "Product not found. Please search again with *SHOW PRODUCTS*."
+    );
+  }
+
+  const formatted = await formatProductDetail(product);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleImageMessage(phone, imageUrl) {
+  const state = await getState(phone);
+  if (!state) return;
+
+  if (state.currentStep === STEPS.WAITING_FOR_PRODUCT_IMAGE) {
+    const reply = await handleProductImageMessage(phone, imageUrl, state);
+    return sendLocalizedMessage(phone, reply);
+  }
+}
+
+async function getMediaUrl(mediaId) {
+  try {
+    const metaResponse = await axios.get(
+      `https://graph.facebook.com/v19.0/${mediaId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        },
+        params: { fields: "url, mime_type" },
+      }
+    );
+
+    const temporaryUrl = metaResponse.data?.url;
+    if (!temporaryUrl) return null;
+
+    const imageResponse = await axios.get(temporaryUrl, {
+      responseType: "arraybuffer",
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+      },
+    });
+
+    const mime = imageResponse.headers["content-type"] || "image/jpeg";
+    const ext = mime.includes("png") ? ".png" : ".jpg";
+    const filename = `${mediaId}${ext}`;
+    const filePath = path.join(__dirname, "..", "..", "uploads", "products", filename);
+
+    const fs = await import("fs");
+    fs.writeFileSync(filePath, Buffer.from(imageResponse.data));
+
+    return `/uploads/products/${filename}`;
+  } catch (error) {
+    console.error(`[webhook] getMediaUrl failed: ${error.message}`);
+    return null;
   }
 }

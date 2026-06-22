@@ -1,51 +1,65 @@
 <% const adminUser = typeof admin !== "undefined" ? admin : null; %>
 <%- include("../partials/admin-shell", { title: title, admin: adminUser }) %>
-<div class="page-title">
-  <div>
-    <h1>Users</h1>
-    <div class="muted">WhatsApp users discovered during registration and conversations.</div>
-  </div>
+
+<div class="page-header">
+  <h1>Users</h1>
+  <div class="subtitle">WhatsApp users discovered during registration and conversations.</div>
 </div>
 
-<nav class="nav">
-  <a href="/admin">Dashboard</a>
-  <a href="/admin/profiles?role=all&status=pending">Profiles</a>
-  <a href="/admin/leads?status=pending">Leads</a>
+<nav class="nav-bar">
+  <a href="/admin"><span class="nav-icon">&#9632;</span> Dashboard</a>
+  <a href="/admin/profiles?role=all&status=pending"><span class="nav-icon">&#128100;</span> Profiles</a>
+  <a href="/admin/products?status=pending"><span class="nav-icon">&#128230;</span> Products</a>
+  <a href="/admin/leads?status=pending"><span class="nav-icon">&#128233;</span> Leads</a>
+  <a href="/admin/users" class="active"><span class="nav-icon">&#128101;</span> Users</a>
 </nav>
 
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Phone</th>
-        <th>Language</th>
-        <th>Preferred Language</th>
-        <th>Location</th>
-        <th>Created</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% if (users.length === 0) { %>
-        <tr><td colspan="6" class="muted">No users found.</td></tr>
-      <% } %>
-      <% users.forEach((user) => { %>
+<div class="section-card">
+  <div class="table-container">
+    <table>
+      <thead>
         <tr>
-          <td data-label="Name"><%= user.name %></td>
-          <td data-label="Phone"><%= user.phone %></td>
-          <td data-label="Language"><%= user.language %></td>
-          <td data-label="Preferred Language"><%= user.preferredLanguage %></td>
-          <td data-label="Location"><%= user.location %></td>
-          <td data-label="Created"><%= new Date(user.createdAt).toLocaleString() %></td>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Language</th>
+          <th>Preferred Language</th>
+          <th>Location</th>
+          <th>Created</th>
         </tr>
-      <% }) %>
-    </tbody>
-  </table>
-</div>
+      </thead>
+      <tbody>
+        <% if (users.length === 0) { %>
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128101;</div>
+                <div class="empty-state-title">No users found</div>
+                <div class="empty-state-desc">No WhatsApp users have registered yet.</div>
+              </div>
+            </td>
+          </tr>
+        <% } %>
+        <% users.forEach((user) => { %>
+          <tr>
+            <td data-label="Name"><span class="primary-text"><%= user.name %></span></td>
+            <td data-label="Phone"><%= user.phone %></td>
+            <td data-label="Language"><%= user.language %></td>
+            <td data-label="Preferred Language"><span class="badge"><%= user.preferredLanguage %></span></td>
+            <td data-label="Location"><%= user.location || "—" %></td>
+            <td data-label="Created"><%= new Date(user.createdAt).toLocaleDateString() %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
 
-<div class="pagination">
-  <% if (page > 1) { %><a class="button secondary" href="/admin/users?page=<%= page - 1 %>">Previous</a><% } %>
-  <% if (hasNextPage) { %><a class="button" href="/admin/users?page=<%= page + 1 %>">Next</a><% } %>
+  <div class="pagination">
+    <div class="pagination-info">Page <%= page %></div>
+    <div class="pagination-links">
+      <% if (page > 1) { %><a class="btn btn-outline" href="/admin/users?page=<%= page - 1 %>">&larr; Previous</a><% } %>
+      <% if (hasNextPage) { %><a class="btn btn-primary" href="/admin/users?page=<%= page + 1 %>">Next &rarr;</a><% } %>
+    </div>
+  </div>
 </div>
   </main>
 </body>

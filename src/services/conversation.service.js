@@ -18,6 +18,12 @@ export const STEPS = {
   WAITING_FOR_AI_EXPORT_QUESTION: "waiting_for_ai_export_question",
   READY: "ready",
   MARKETPLACE_PAGE: "marketplace_page",
+  WAITING_FOR_PRODUCT_NAME: "waiting_for_product_name",
+  WAITING_FOR_PRODUCT_DESCRIPTION: "waiting_for_product_description",
+  WAITING_FOR_PRODUCT_CATEGORY: "waiting_for_product_category",
+  WAITING_FOR_PRODUCT_PRICE: "waiting_for_product_price",
+  WAITING_FOR_PRODUCT_QUANTITY: "waiting_for_product_quantity",
+  WAITING_FOR_PRODUCT_IMAGE: "waiting_for_product_image",
 };
 
 export async function getState(phone) {
@@ -60,6 +66,19 @@ export async function clearState(phone) {
 export function isRegistrationStep(currentStep) {
   return currentStep && !Object.values(STEPS).includes(currentStep);
 }
+
+export function isProductRegistrationStep(currentStep) {
+  return currentStep && Object.values(PRODUCT_REG_STEPS).includes(currentStep);
+}
+
+const PRODUCT_REG_STEPS = [
+  STEPS.WAITING_FOR_PRODUCT_NAME,
+  STEPS.WAITING_FOR_PRODUCT_DESCRIPTION,
+  STEPS.WAITING_FOR_PRODUCT_CATEGORY,
+  STEPS.WAITING_FOR_PRODUCT_PRICE,
+  STEPS.WAITING_FOR_PRODUCT_QUANTITY,
+  STEPS.WAITING_FOR_PRODUCT_IMAGE,
+];
 
 export function buildPageState({ searchType, product, page = 1, sourceRole = null }) {
   return { searchType, product: product || null, page, sourceRole };

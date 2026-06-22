@@ -104,6 +104,9 @@ export function getHelpMessage() {
     "• *REGISTER* — start or resume your profile\n" +
     "• Register as *Farmer*, *Exporter*, or *Buyer*\n\n" +
     "🧑‍🌾 *For Farmers / Sellers*\n" +
+    "• *ADD PRODUCT* — list a product for sale\n" +
+    "• *SHOW PRODUCTS* — browse the marketplace\n" +
+    "• *SHOW grass cutter* — search products by name\n" +
     "• *EXPORTERS* — find exporters\n" +
     "• *FIND EXPORTERS onion* — find exporters for a product\n" +
     "• *BUYERS* — find buyers for your products\n" +

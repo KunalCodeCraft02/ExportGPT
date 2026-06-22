@@ -1,97 +1,110 @@
 <% const adminUser = typeof admin !== "undefined" ? admin : null; %>
 <%- include("../partials/admin-shell", { title: title, admin: adminUser }) %>
 <% function formatList(values) { return Array.isArray(values) && values.length ? values.join(", ") : "Not listed"; } %>
-<div class="page-title">
-  <div>
-    <h1>Profile Verification</h1>
-    <div class="muted">Approve or reject marketplace registrations.</div>
-  </div>
+
+<div class="page-header">
+  <h1>Profile Verification</h1>
+  <div class="subtitle">Approve or reject marketplace registrations.</div>
 </div>
 
-<nav class="nav">
-  <a href="/admin">Dashboard</a>
-  <a href="/admin/leads?status=pending">Leads</a>
-  <a href="/admin/users">Users</a>
+<nav class="nav-bar">
+  <a href="/admin"><span class="nav-icon">&#9632;</span> Dashboard</a>
+  <a href="/admin/profiles?role=all&status=pending" class="active"><span class="nav-icon">&#128100;</span> Profiles</a>
+  <a href="/admin/products?status=pending"><span class="nav-icon">&#128230;</span> Products</a>
+  <a href="/admin/leads?status=pending"><span class="nav-icon">&#128233;</span> Leads</a>
+  <a href="/admin/users"><span class="nav-icon">&#128101;</span> Users</a>
 </nav>
 
-<form class="filters" method="get" action="/admin/profiles">
-  <select name="role">
-    <% roles.forEach((item) => { %>
-      <option value="<%= item %>" <%= item === role ? "selected" : "" %>><%= item %></option>
-    <% }) %>
-  </select>
-  <select name="status">
-    <% statuses.forEach((item) => { %>
-      <option value="<%= item %>" <%= item === status ? "selected" : "" %>><%= item %></option>
-    <% }) %>
-  </select>
-  <button type="submit">Apply filters</button>
-</form>
-
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Profile</th>
-        <th>Type</th>
-        <th>Contact</th>
-        <th>Products</th>
-        <th>Location</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% if (profiles.length === 0) { %>
-        <tr><td colspan="8" class="muted">No profiles found for this filter.</td></tr>
-      <% } %>
-      <% profiles.forEach((profile) => { %>
-        <tr>
-          <td data-label="Profile">
-            <strong><%= profile.name %></strong><br>
-            <span class="small muted"><%= profile.companyName || "" %></span>
-          </td>
-          <td data-label="Type"><span class="badge"><%= profile.profileRole %></span></td>
-          <td data-label="Contact">
-            <%= profile.phone || "Not listed" %><br>
-            <span class="small muted"><%= profile.email || "No email" %></span>
-          </td>
-          <td data-label="Products"><%= formatList(profile.products || profile.productsNeeded || []) %></td>
-          <td data-label="Location"><%= [profile.village, profile.district, profile.city, profile.state, profile.country].filter(Boolean).join(", ") || "Not listed" %></td>
-          <td data-label="Status"><span class="badge <%= profile.verificationStatus %>"><%= profile.verificationStatus %></span></td>
-          <td data-label="Created"><%= new Date(profile.createdAt).toLocaleString() %></td>
-          <td class="actions" data-label="Actions">
-            <% if (profile.verificationStatus === "pending") { %>
-              <div class="review-actions">
-                <form method="post" action="/admin/profiles/<%= profile.profileRole %>/<%= profile._id %>/approve" onsubmit="return confirm('Approve this profile and notify the user?');">
-                  <button class="secondary" type="submit">Approve</button>
-                </form>
-                <form method="post" action="/admin/profiles/<%= profile.profileRole %>/<%= profile._id %>/reject" class="reject-form">
-                  <textarea name="reason" placeholder="Optional rejection reason"></textarea>
-                  <button class="danger" type="submit">Reject</button>
-                </form>
-              </div>
-            <% } else { %>
-              <span class="muted small">Reviewed <%= profile.reviewedAt ? new Date(profile.reviewedAt).toLocaleString() : "—" %></span>
-            <% } %>
-          </td>
-        </tr>
+<div class="section-card">
+  <form class="filters-bar" method="get" action="/admin/profiles">
+    <span class="filter-label">Filter by</span>
+    <select name="role">
+      <% roles.forEach((item) => { %>
+        <option value="<%= item %>" <%= item === role ? "selected" : "" %>><%= item %></option>
       <% }) %>
-    </tbody>
-  </table>
-</div>
+    </select>
+    <select name="status">
+      <% statuses.forEach((item) => { %>
+        <option value="<%= item %>" <%= item === status ? "selected" : "" %>><%= item %></option>
+      <% }) %>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
 
-<div class="pagination">
-  <% if (page > 1) { %><a class="button secondary" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page - 1 %>">Previous</a><% } %>
-  <% if (hasNextPage) { %><a class="button" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page + 1 %>">Next</a><% } %>
-</div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Profile</th>
+          <th>Type</th>
+          <th>Contact</th>
+          <th>Products</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (profiles.length === 0) { %>
+          <tr>
+            <td colspan="8">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128100;</div>
+                <div class="empty-state-title">No profiles found</div>
+                <div class="empty-state-desc">No profiles match the current filters.</div>
+              </div>
+            </td>
+          </tr>
+        <% } %>
+        <% profiles.forEach((profile) => { %>
+          <tr>
+            <td data-label="Profile">
+              <span class="primary-text"><%= profile.name %></span>
+              <% if (profile.companyName) { %>
+                <span class="secondary-text"><%= profile.companyName %></span>
+              <% } %>
+            </td>
+            <td data-label="Type"><span class="badge <%= profile.profileRole %>"><%= profile.profileRole %></span></td>
+            <td data-label="Contact">
+              <span class="primary-text"><%= profile.phone || "Not listed" %></span>
+              <% if (profile.email) { %>
+                <span class="secondary-text"><%= profile.email %></span>
+              <% } %>
+            </td>
+            <td data-label="Products"><%= formatList(profile.products || profile.productsNeeded || []) %></td>
+            <td data-label="Location"><%= [profile.village, profile.district, profile.city, profile.state, profile.country].filter(Boolean).join(", ") || "Not listed" %></td>
+            <td data-label="Status"><span class="badge <%= profile.verificationStatus %>"><%= profile.verificationStatus %></span></td>
+            <td data-label="Created"><%= new Date(profile.createdAt).toLocaleDateString() %></td>
+            <td data-label="Actions">
+              <% if (profile.verificationStatus === "pending") { %>
+                <div class="review-actions">
+                  <form method="post" action="/admin/profiles/<%= profile.profileRole %>/<%= profile._id %>/approve" onsubmit="return confirm('Approve this profile and notify the user?');">
+                    <button class="btn btn-success btn-sm" type="submit" style="width:100%;">&#10003; Approve</button>
+                  </form>
+                  <form method="post" action="/admin/profiles/<%= profile.profileRole %>/<%= profile._id %>/reject" class="reject-form">
+                    <textarea name="reason" placeholder="Rejection reason (optional)"></textarea>
+                    <button class="btn btn-danger btn-sm" type="submit" style="width:100%;">&#10007; Reject</button>
+                  </form>
+                </div>
+              <% } else { %>
+                <span class="secondary-text"><%= profile.reviewedAt ? new Date(profile.reviewedAt).toLocaleDateString() : "" %></span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
 
-<script>
-  function formatList(values) {
-    return Array.isArray(values) && values.length ? values.join(", ") : "Not listed";
-  }
-</script>
+  <div class="pagination">
+    <div class="pagination-info">Page <%= page %></div>
+    <div class="pagination-links">
+      <% if (page > 1) { %><a class="btn btn-outline" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page - 1 %>">&larr; Previous</a><% } %>
+      <% if (hasNextPage) { %><a class="btn btn-primary" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page + 1 %>">Next &rarr;</a><% } %>
+    </div>
+  </div>
+</div>
   </main>
 </body>
 </html>
