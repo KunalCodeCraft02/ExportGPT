@@ -616,13 +616,13 @@ async function sendPriceForCommodity(phone, rawCommodity, state) {
   // Try state-specific prices first (more relevant for the user)
   const farmer = await Farmer.findOne({ phone }).select("state").lean();
 
-  let { records, commodity, error } = await fetchCommodityPrice(rawCommodity, {
+  let { records, commodity, error, fromCache } = await fetchCommodityPrice(rawCommodity, {
     state: farmer?.state,
   });
 
   // Fall back to national data if nothing found for user's state
   if (!error && (!records || records.length === 0) && farmer?.state) {
-    ({ records, commodity, error } = await fetchCommodityPrice(rawCommodity));
+    ({ records, commodity, error, fromCache } = await fetchCommodityPrice(rawCommodity));
   }
 
   // Reset step back to READY
@@ -645,7 +645,7 @@ async function sendPriceForCommodity(phone, rawCommodity, state) {
     );
   }
 
-  return sendLocalizedMessage(phone, formatPriceResults(commodity, records));
+  return sendLocalizedMessage(phone, formatPriceResults(commodity, records, fromCache));
 }
 
 // ─── Search handlers ──────────────────────────────────────────────────────────
