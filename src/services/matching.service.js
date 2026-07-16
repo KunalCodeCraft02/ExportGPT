@@ -1,5 +1,6 @@
 import Exporter from "../models/Exporter.js";
 import Farmer from "../models/Farmer.js";
+import Buyer from "../models/Buyer.js";
 import { updateState } from "./conversation.service.js";
 
 const PAGE_SIZE = 10;
@@ -96,6 +97,25 @@ export async function searchFarmers({ product, page = 1, limit = PAGE_SIZE } = {
   };
 }
 
+export async function searchBuyers({ product, page = 1, limit = PAGE_SIZE } = {}) {
+  // Buyer model uses "productsNeeded" (array), not "products"
+  const query = buildProductQuery(product, ["productsNeeded", "companyName", "name"], buildApprovedQuery());
+  const total = await Buyer.countDocuments(query);
+  const buyers = await Buyer.find(query)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
+
+  return {
+    total,
+    page,
+    limit,
+    hasNextPage: page * limit < total,
+    results: buyers,
+  };
+}
+
 export async function formatExporterResults(searchResult) {
   const { total, page, limit, hasNextPage, results } = searchResult;
   if (!results.length) {
@@ -121,6 +141,24 @@ export async function formatFarmerResults(searchResult) {
   const pagination = hasNextPage ? `\n\n📄 Page ${page} of results. Type *MORE* for the next ${limit}.` : "";
 
   return `🧑‍🌾 *Farmers / Sellers Found* (${total})\n\n${cards}${pagination}`;
+}
+
+export async function formatBuyerResults(searchResult) {
+  const { total, page, limit, hasNextPage, results } = searchResult;
+  if (!results.length) {
+    return (
+      "❌ No verified buyers found for this product.\n\n" +
+      "Try:\n" +
+      "• Another product\n" +
+      "• Type *HELP* to see available commands\n" +
+      "• Buyers may register later — check back soon"
+    );
+  }
+
+  const cards = results.map((buyer, index) => formatBuyerCard(buyer, index + 1)).join("\n\n");
+  const pagination = hasNextPage ? `\n\n📄 Page ${page} of results. Type *MORE* for the next ${limit}.` : "";
+
+  return `🛒 *Buyers Found* (${total})\n\n${cards}${pagination}`;
 }
 
 export async function storeMarketplacePage(phone, searchType, product, page = 1, sourceRole = null, results = []) {
@@ -213,6 +251,24 @@ function formatFarmerCard(farmer, index) {
     `📦 Packaging: ${farmer.packagingType || "—"}\n` +
     `☎ ${farmer.phone || "—"}\n` +
     `📧 ${farmer.email || "—"}`;
+}
+
+function formatBuyerCard(buyer, index) {
+  const location = [buyer.city, buyer.state, buyer.country].filter(Boolean).join(", ");
+  const products = formatList(buyer.productsNeeded);
+  const contact = [
+    buyer.phone ? `☎ ${buyer.phone}` : null,
+    buyer.email ? `📧 ${buyer.email}` : null,
+  ].filter(Boolean).join("\n") || "📋 Contact not listed";
+
+  return `*${index}. ${buyer.companyName || buyer.name}*\n` +
+    `📍 ${location || "—"}\n` +
+    `📦 Interested in: ${products || "—"}\n` +
+    `📊 Quantity: ${buyer.quantityRequired || "—"}\n` +
+    `💰 Target price: ${buyer.targetPrice || "—"}\n` +
+    `📅 Delivery: ${buyer.deliveryTimeline || "—"}\n` +
+    `💳 Payment: ${buyer.paymentTerms || "—"}\n` +
+    `${contact}`;
 }
 
 function formatList(values) {

@@ -1,11 +1,12 @@
 import { sendLocalizedMessage } from "../services/whatsapp.service.js";
-import askGroq from "../services/groq.service.js";
+import askGroq, { askGroqWithContext } from "../services/groq.service.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import BuyerLead from "../models/BuyerLead.js";
 import Buyer from "../models/Buyer.js";
 import Farmer from "../models/Farmer.js";
 import Exporter from "../models/Exporter.js";
+import User from "../models/User.js";
 import {
   getWelcomeMessage,
   getHelpMessage,
@@ -31,8 +32,10 @@ import {
   extractProduct,
   formatExporterResults,
   formatFarmerResults,
+  formatBuyerResults,
   searchExporters,
   searchFarmers,
+  searchBuyers,
   storeMarketplacePage,
 } from "../services/matching.service.js";
 import {
@@ -52,6 +55,15 @@ import {
   PRODUCT_REGISTRATION_STEPS,
   PRODUCT_CATEGORY_MAP,
 } from "../services/product.service.js";
+import { analyzeMessage, buildContext, updateContext } from "../nlp/pipeline.js";
+import {
+  saveUserMessage,
+  saveAssistantMessage,
+  getConversationHistory,
+  buildGroqMessages,
+  summarizeContext,
+} from "../services/chatMemory.service.js";
+import { getLanguageInstruction } from "../services/groq.service.js";
 import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,6 +130,7 @@ async function routeMessage(phone, text) {
   const normalized = text.trim().toUpperCase();
   const state = await getState(phone);
 
+  // ── First-time users: no conversation state ──────────────────────────────
   if (!state) {
     const existingProfile = await findExistingProfile(phone);
     if (existingProfile) {
@@ -127,19 +140,15 @@ async function routeMessage(phone, text) {
         tempData: { preferredLanguage: existingProfile.preferredLanguage || "english" },
       });
 
-      // Handle pending status
       if (existingProfile.status === "pending") {
         const statusMsg = getStatusMessage(existingProfile.role, "pending");
         return sendLocalizedMessage(phone, statusMsg);
       }
-
-      // Handle rejected status
       if (existingProfile.status === "rejected") {
         const statusMsg = getStatusMessage(existingProfile.role, "rejected", existingProfile.rejectionReason);
         return sendLocalizedMessage(phone, statusMsg);
       }
 
-      // Approved — normal welcome back
       return sendLocalizedMessage(
         phone,
         `Welcome back, *${existingProfile.name}*! 👋\n\n` +
@@ -158,20 +167,29 @@ async function routeMessage(phone, text) {
 
   const { currentStep, role, tempData } = state;
 
+  // ── Run NLP pipeline (language + intent + entities) ──────────────────────
+  const userProfile = role ? await findExistingProfile(phone) : null;
+  const context = buildContext(state, userProfile);
+  const analysis = analyzeMessage(text, context, tempData.recentLanguages || []);
+  const { intent, language, entities } = analysis;
+
+  // Save user message to chat history
+  await saveUserMessage(phone, text, analysis);
+
   // ── Global commands (available at any step) ──────────────────────────────
-  if (normalized === "HELP") {
-    return sendLocalizedMessage(phone, getHelpMessage());
+  if (normalized === "HELP" || intent === "help") {
+    const reply = getHelpMessage();
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
   }
 
-  if (normalized === "REGISTER") {
+  if (normalized === "REGISTER" || intent === "register") {
     if (role) {
-      // Check if the user's profile is rejected — allow re-registration
       const existingProfile = await findExistingProfile(phone);
       if (existingProfile && existingProfile.status === "rejected") {
         const reply = await startRoleRegistration(phone, role, state);
         return sendLocalizedMessage(phone, reply);
       }
-      // Check if pending — show status message
       if (existingProfile && existingProfile.status === "pending") {
         const statusMsg = getStatusMessage(role, "pending");
         return sendLocalizedMessage(phone, statusMsg);
@@ -187,13 +205,12 @@ async function routeMessage(phone, text) {
     return sendLocalizedMessage(phone, getWelcomeMessage());
   }
 
+  // Natural language registration intent (e.g., "I want to register as farmer")
   const registrationIntent = parseRegistrationIntent(text);
   if (registrationIntent) {
-    // Check if user already has a profile with this role
     const existingProfile = await findExistingProfile(phone);
     if (existingProfile && existingProfile.role === registrationIntent) {
       if (existingProfile.status === "rejected") {
-        // Allow re-registration for rejected profiles
         const reply = await startRoleRegistration(phone, registrationIntent, state);
         return sendLocalizedMessage(phone, reply);
       }
@@ -206,7 +223,9 @@ async function routeMessage(phone, text) {
     return sendLocalizedMessage(phone, reply);
   }
 
-  // ── Step-based routing ───────────────────────────────────────────────────
+  // ── Step-based routing (registration flows, multi-step processes) ────────
+  // These MUST be preserved exactly — they are stateful flows.
+
   if (currentStep === STEPS.ROLE_SELECTION) {
     const chosenRole = parseRoleChoice(text);
     if (!chosenRole) {
@@ -239,7 +258,6 @@ async function routeMessage(phone, text) {
     return handlePriceProductReply(phone, text, state);
   }
 
-  // ── Product registration steps ──────────────────────────────────────────────
   if (currentStep === STEPS.WAITING_FOR_PRODUCT_IMAGE) {
     if (normalized === "SKIP") {
       const reply = await handleProductImageSkip(phone, state);
@@ -261,8 +279,7 @@ async function routeMessage(phone, text) {
     return sendLocalizedMessage(phone, reply);
   }
 
-  // ── Registered user — marketplace & command routing ───────────────────────
-
+  // ── Registered user — intent-based routing ───────────────────────────────
   // Check verification status before allowing marketplace access
   if (role && currentStep === STEPS.READY) {
     const existingProfile = await findExistingProfile(phone);
@@ -276,83 +293,111 @@ async function routeMessage(phone, text) {
     }
   }
 
-  // Send Request (reply "1" when viewing exporters)
+  // ── Number shortcuts (reply "1" or "2" in context) ──────────────────────
   if (normalized === "1" && state.tempData?.searchType === "exporters") {
     return handleSendRequest(phone, state);
   }
-
-  // Next exporter (reply "2" when viewing exporters)
   if (normalized === "2" && state.tempData?.searchType === "exporters") {
     return handleNextExporter(phone, state);
   }
-
-  // Pagination
   if (normalized === "MORE") {
     return handleMore(phone, state);
   }
 
-  // ── Product marketplace commands ────────────────────────────────────────────
+  // ── Intent-based routing ─────────────────────────────────────────────────
+  // Update context with NLP analysis
+  const updatedTempData = updateContext(tempData, analysis);
+
+  switch (intent) {
+    case "greeting":
+      return handleGreetingIntent(phone, role, language, state);
+
+    case "market_price":
+      return handlePriceIntent(phone, text, entities, language, state);
+
+    case "farmer_search":
+      return handleFarmerSearchIntent(phone, text, entities, state);
+
+    case "exporter_search":
+      return handleExporterSearchIntent(phone, text, entities, state);
+
+    case "buyer_search":
+      return handleBuyerSearchIntent(phone, text, entities, state);
+
+    case "product_search":
+      return handleProductSearchIntent(phone, text, state);
+
+    case "demand_intelligence":
+      return handleDemandIntent(phone, text, entities, language, state);
+
+    case "register":
+      return handleRegisterIntent(phone, role, state);
+
+    case "trend":
+      return handleTrendIntent(phone, text, entities, language, state);
+
+    case "weather":
+    case "crop_recommendation":
+    case "government_scheme":
+    case "logistics":
+    case "payment":
+    case "quality":
+    case "packaging":
+      return handleAIIntent(phone, text, intent, language, state);
+
+    case "complaint":
+    case "feedback":
+      return handleAIIntent(phone, text, intent, language, state);
+
+    case "goodbye":
+      return handleGoodbyeIntent(phone, language, state);
+
+    case "more":
+      return handleMore(phone, state);
+
+    case "skip":
+      // If in a step that supports skip, let it fall through
+      break;
+
+    case "option_1":
+    case "option_2":
+    case "option_3":
+      // Let number-based routing handle these
+      break;
+
+    case "unknown":
+    default:
+      // ── Fallback: use Groq AI with conversation history ──────────────────
+      return handleAIFallback(phone, text, language, state, updatedTempData);
+  }
+
+  // ── Keyword fallback (backward compatibility) ────────────────────────────
+  // If NLP didn't match but keyword patterns do, still route correctly.
+
   if (normalized === "ADD PRODUCT") {
     return handleAddProduct(phone, state);
   }
-
-  if (normalized === "SHOW PRODUCTS") {
-    return handleShowProducts(phone, state);
+  if (normalized === "SHOW PRODUCTS" || normalized.startsWith("SHOW ")) {
+    return handleShowProducts(phone, text, state);
   }
-
-  if (normalized.startsWith("SHOW ")) {
-    return handleShowProductSearch(phone, text, state);
-  }
-
   if (normalized.startsWith("VIEW ")) {
     return handleViewProduct(phone, text, state);
   }
-
-  // ── Daily market price commands ──────────────────────────────────────────
-  if (
-    normalized === "PRICE" ||
-    normalized === "PRICES" ||
-    normalized === "RATE" ||
-    normalized === "RATES" ||
-    normalized === "MANDI" ||
-    normalized.startsWith("PRICE ") ||
-    normalized.startsWith("PRICES ") ||
-    normalized.startsWith("RATE ") ||
-    normalized.startsWith("MARKET PRICE") ||
-    normalized.startsWith("DAILY PRICE") ||
-    normalized.startsWith("MARKET RATE") ||
-    normalized.startsWith("CHECK PRICE") ||
-    normalized.startsWith("MANDI PRICE") ||
-    normalized.startsWith("MANDI RATE")
-  ) {
+  if (/^(PRICE|PRICES?|RATE|RATES?|MANDI|MARKET\s*PRICE|DAILY\s*PRICE|CHECK\s*PRICE|MANDI\s*PRICE|MANDI\s*RATE)/.test(normalized)) {
     return handlePriceCommand(phone, text, state);
   }
-
-  // ── Farmer search ────────────────────────────────────────────────────────
-  if (
-    normalized === "FARMERS" ||
-    normalized === "FARMER" ||
-    normalized.startsWith("FIND FARMER")
-  ) {
+  if (/^(FARMERS?|FIND\s*FARMER)/.test(normalized)) {
     return handleFarmerSearch(phone, text, state);
   }
-
-  // ── Exporter search ──────────────────────────────────────────────────────
-  if (
-    normalized === "EXPORTERS" ||
-    normalized === "EXPORTER" ||
-    normalized.startsWith("FIND EXPORTER") ||
-    normalized.startsWith("SHOW EXPORTER") ||
-    normalized.startsWith("I WANT TO EXPORT") ||
-    normalized.startsWith("FIND BUYER") ||
-    normalized.startsWith("BUYERS")
-  ) {
+  if (/^(BUYERS?|FIND\s*BUYER|SHOW\s*BUYER)/.test(normalized)) {
+    return handleBuyerSearch(phone, text, state);
+  }
+  if (/^(EXPORTERS?|FIND\s*EXPORTER|SHOW\s*EXPORTER|I\s*WANT\s*TO\s*EXPORT)/.test(normalized)) {
     return handleExporterSearch(phone, text, state);
   }
 
-  // ── Fallback to AI ───────────────────────────────────────────────────────
-  const aiReply = await askGroq(text);
-  return sendLocalizedMessage(phone, aiReply);
+  // ── Final fallback: Groq AI ──────────────────────────────────────────────
+  return handleAIFallback(phone, text, language, state, updatedTempData);
 }
 
 // ─── Language selection ───────────────────────────────────────────────────────
@@ -679,6 +724,21 @@ async function handleFarmerSearch(phone, text, state) {
   return sendLocalizedMessage(phone, formatted);
 }
 
+async function handleBuyerSearch(phone, text, state) {
+  const product =
+    extractProduct(text) ||
+    state.tempData?.registrationTempData?.products?.[0] ||
+    state.tempData?.products?.[0] ||
+    null;
+
+  const result = await searchBuyers({ product, page: 1 });
+  const formatted = await formatBuyerResults(result);
+
+  await storeMarketplacePage(phone, "buyers", product, 1, state.role);
+
+  return sendLocalizedMessage(phone, formatted);
+}
+
 async function handleMore(phone, state) {
   if (!state.tempData?.searchType) {
     return sendLocalizedMessage(
@@ -706,6 +766,13 @@ async function handleMore(phone, state) {
     const result = await searchFarmers({ product, page: nextPage });
     const formatted = await formatFarmerResults(result);
     await storeMarketplacePage(phone, "farmers", product, nextPage, state.role);
+    return sendLocalizedMessage(phone, formatted);
+  }
+
+  if (searchType === "buyers") {
+    const result = await searchBuyers({ product, page: nextPage });
+    const formatted = await formatBuyerResults(result);
+    await storeMarketplacePage(phone, "buyers", product, nextPage, state.role);
     return sendLocalizedMessage(phone, formatted);
   }
 
@@ -738,8 +805,9 @@ async function handleAddProduct(phone, state) {
   return sendLocalizedMessage(phone, reply);
 }
 
-async function handleShowProducts(phone, state) {
-  const result = await searchProducts({ product: null, page: 1 });
+async function handleShowProducts(phone, text, state) {
+  const searchTerm = (text || "").trim().replace(/^SHOW\s+/i, "").trim() || null;
+  const result = await searchProducts({ product: searchTerm, page: 1 });
   const formatted = formatProductResults(result);
 
   await updateState(phone, {
@@ -888,4 +956,189 @@ async function findExistingProfile(phone) {
   }
 
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Intent-based handlers (NLP pipeline) ────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleGreetingIntent(phone, role, language, state) {
+  const greetings = {
+    english: role
+      ? `Hello! 👋 How can I help you today?\n\nType *HELP* to see available commands.`
+      : `Hello! 👋 Welcome to *ExportConnect* — B2B Agriculture Marketplace!\n\nI connect farmers/sellers directly with exporters and buyers.\n\nPlease tell me who you are:\n\n1️⃣ *Farmer / Seller*\n2️⃣ *Exporter*\n3️⃣ *Buyer*\n\nReply with *1*, *2*, or *3* 👇`,
+    hindi: role
+      ? `नमस्ते! 👋 आज मैं आपकी कैसे मदद कर सकता हूँ?\n\nसभी कमांड देखने के लिए *HELP* टाइप करें।`
+      : `नमस्ते! 👋 *ExportConnect* में आपका स्वागत है!\n\nमैं किसानों/विक्रेताओं को निर्यातकों और खरीददारों से जोड़ता हूँ।\n\nकृपया बताएं आप कौन हैं:\n\n1️⃣ *किसान / विक्रेता*\n2️⃣ *निर्यातक*\n3️⃣ *खरीददार*\n\n*1*, *2*, या *3* टाइप करें 👇`,
+    marathi: role
+      ? `नमस्कार! 👆 आज मी तुम्हाला कशी मदत करू शकतो?\n\nसर्व कमांड पाहण्यासाठी *HELP* टाइप करा.`
+      : `नमस्कार! 👋 *ExportConnect* मध्ये आपले स्वागत आहे!\n\nमी शेतकऱ्यांना/विक्रेत्यांना निर्यातदार आणि खरेदीदारांशी जोडतो.\n\nकृपया सांगा तुम्ही कोण आहात:\n\n1️⃣ *शेतकरी / विक्रेता*\n2️⃣ *निर्यातदार*\n3️⃣ *खरेदीदार*\n\n*1*, *2*, किंवा *3* टाइप करा 👇`,
+    hinglish: role
+      ? `Hello! 👋 Aaj main aapki kaise help kar sakta hoon?\n\nSaare commands dekhne ke liye *HELP* type karein.`
+      : `Hello! 👋 *ExportConnect* mein aapka swagat hai!\n\nMain farmers/sellers ko exporters aur buyers se jodta hoon.\n\nPlease bataiye aap kaun hain:\n\n1️⃣ *Farmer / Seller*\n2️⃣ *Exporter*\n3️⃣ *Buyer*\n\n*1*, *2*, ya *3* type karein 👇`,
+  };
+
+  const reply = greetings[language] || greetings.english;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handlePriceIntent(phone, text, entities, language, state) {
+  // Use NLP-extracted commodity, or fall back to text extraction
+  const commodity = entities.commodity || extractCommodityFromText(text);
+  if (!commodity) {
+    // Ask which product
+    await updateState(phone, {
+      role: state.role,
+      currentStep: STEPS.WAITING_FOR_PRICE_PRODUCT,
+      tempData: state.tempData || {},
+    });
+    const askMsg = {
+      english: "🌾 Which product's price would you like to check?\n\nExamples: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
+      hindi: "🌾 आप किस प्रोडक्ट का भाव जानना चाहेंगे?\n\nउदाहरण: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
+      hinglish: "🌾 Aap kis product ka price jaanna chahte hain?\n\nExamples: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
+      marathi: "🌾 तुम्हाला कोणत्या उत्पादनाचा भाव जाणून घ्यायचा आहे?\n\nउदाहरणे: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
+    };
+    const reply = askMsg[language] || askMsg.english;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+  return sendPriceForCommodity(phone, commodity, state);
+}
+
+async function handleFarmerSearchIntent(phone, text, entities, state) {
+  const product = entities.commodity || extractProduct(text);
+  const result = await searchFarmers({ product, page: 1 });
+  const formatted = await formatFarmerResults(result);
+  await storeMarketplacePage(phone, "farmers", product, 1, state.role);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleBuyerSearchIntent(phone, text, entities, state) {
+  const product = entities.commodity || extractProduct(text);
+  const result = await searchBuyers({ product, page: 1 });
+  const formatted = await formatBuyerResults(result);
+  await storeMarketplacePage(phone, "buyers", product, 1, state.role);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleExporterSearchIntent(phone, text, entities, state) {
+  const product = entities.commodity || extractProduct(text);
+  const result = await searchExporters({ product, page: 1 });
+  const formatted = await formatExporterResults(result);
+  await storeMarketplacePage(phone, "exporters", product, 1, state.role, result.results);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleProductSearchIntent(phone, text, state) {
+  const searchTerm = text.trim().replace(/^(show|search|find|browse)\s*/i, "").trim();
+  const result = await searchProducts({ product: searchTerm || null, page: 1 });
+  const formatted = formatProductResults(result);
+  await updateState(phone, {
+    currentStep: STEPS.MARKETPLACE_PAGE,
+    tempData: { ...(state.tempData || {}), searchType: "products", product: searchTerm, page: 1, products: result.results },
+  });
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleDemandIntent(phone, text, entities, language, state) {
+  // Route to the demand intelligence module
+  const { getProductDemandData, formatDemandIntelligence, getExportAssistantReply } = await import("../services/demandintelligence.service.js");
+  const commodity = entities.commodity || extractCommodityFromText(text);
+
+  // Check if it's an export question (e.g., "Can I export mango to Dubai")
+  if (text.toLowerCase().includes("can i export") || text.toLowerCase().includes("export guide") || text.toLowerCase().includes("export document")) {
+    const reply = await getExportAssistantReply(text);
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  // Check if it's a demand query
+  if (commodity) {
+    const data = getProductDemandData(commodity);
+    const reply = formatDemandIntelligence(commodity, data);
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  // General export question — use AI
+  const reply = await getExportAssistantReply(text);
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleRegisterIntent(phone, role, state) {
+  if (role) {
+    const existingProfile = await findExistingProfile(phone);
+    if (existingProfile && existingProfile.status === "rejected") {
+      const reply = await startRoleRegistration(phone, role, state);
+      return sendLocalizedMessage(phone, reply);
+    }
+    if (existingProfile && existingProfile.status === "pending") {
+      const statusMsg = getStatusMessage(role, "pending");
+      return sendLocalizedMessage(phone, statusMsg);
+    }
+    const reply = await resumeRegistration(phone, role, state.tempData || {});
+    return sendLocalizedMessage(phone, reply);
+  }
+  await updateState(phone, {
+    currentStep: STEPS.ROLE_SELECTION,
+    role: null,
+    tempData: {},
+  });
+  return sendLocalizedMessage(phone, getWelcomeMessage());
+}
+
+async function handleTrendIntent(phone, text, entities, language, state) {
+  const { getExportTrendAnalysis } = await import("../services/demandintelligence.service.js");
+  const commodity = entities.commodity || extractCommodityFromText(text);
+  const product = commodity || "agricultural products";
+  const reply = await getExportTrendAnalysis(product);
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleAIIntent(phone, text, intent, language, state) {
+  // Use Groq with context for specific topic intents
+  const history = await getConversationHistory(phone, 10);
+  const reply = await askGroqWithContext(text, {
+    history,
+    language,
+  });
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleGoodbyeIntent(phone, language, state) {
+  const goodbyes = {
+    english: "Goodbye! 👋 Thank you for using ExportConnect. Have a great day! Type *HELP* anytime to come back.",
+    hindi: "अलविदा! 👋 ExportConnect इस्तेमाल करने के लिए धन्यवाद। आपका दिन शुभ हो! वापस आने के लिए कभी भी *HELP* टाइप करें।",
+    hinglish: "Alvida! 👋 ExportConnect use karne ke liye dhanyavaad. Aapka din shubh ho! Wapas aane ke liye kabhi bhi *HELP* type karein.",
+    marathi: "निरोप! 👋 ExportConnect वापरल्याबद्दल धन्यवाद. तुम्हाला चांगला दिवस जाऊ द्या! परत येण्यासाठी कधीही *HELP* टाइप करा.",
+  };
+  const reply = goodbyes[language] || goodbyes.english;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleAIFallback(phone, text, language, state, updatedTempData) {
+  // Update context in state
+  await updateState(phone, {
+    role: state.role,
+    currentStep: state.currentStep,
+    tempData: updatedTempData,
+  });
+
+  // Use Groq with conversation history for natural responses
+  const history = await getConversationHistory(phone, 10);
+  const reply = await askGroqWithContext(text, {
+    history,
+    language,
+  });
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
 }
