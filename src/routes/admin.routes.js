@@ -15,12 +15,14 @@ import {
   rejectProduct,
   deleteProduct,
 } from "../controllers/admin.controller.js";
+import logger from "../utils/logger.js";
 
 const router = express.Router();
 
 function requireAdmin(req, res, next) {
   if (req.session?.adminId) return next();
 
+  logger.warn(`Auth check failed for ${req.originalUrl} - no session`);
   req.session.returnTo = req.originalUrl;
   return res.redirect("/admin/login");
 }

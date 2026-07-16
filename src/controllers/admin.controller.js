@@ -16,6 +16,7 @@ import {
   deleteProduct as deleteProductService,
   getProductStats,
 } from "../services/product.service.js";
+import logger from "../utils/logger.js";
 
 export async function showLoginPage(req, res) {
   if (req.session?.adminId) return res.redirect("/admin");
@@ -27,19 +28,29 @@ export async function showLoginPage(req, res) {
 }
 
 export async function login(req, res) {
-  const admin = await validateAdminLogin(req.body?.username, req.body?.password);
+  try {
+    const { username, password } = req.body || {};
+    logger.info(`Login attempt for user: ${username}`);
 
-  if (!admin) {
+    const admin = await validateAdminLogin(username, password);
+
+    if (!admin) {
+      logger.warn(`Login failed for user: ${username}`);
+      return res.redirect("/admin/login?error=1");
+    }
+
+    req.session.adminId = admin._id.toString();
+    req.session.adminName = admin.name || "Admin";
+
+    const returnTo = req.session.returnTo || "/admin";
+    delete req.session.returnTo;
+
+    logger.info(`Login successful for user: ${username}, session ID: ${req.session.id}`);
+    return res.redirect(returnTo);
+  } catch (error) {
+    logger.error(`Login error: ${error.message}`);
     return res.redirect("/admin/login?error=1");
   }
-
-  req.session.adminId = admin._id.toString();
-  req.session.adminName = admin.name || "Admin";
-
-  const returnTo = req.session.returnTo || "/admin";
-  delete req.session.returnTo;
-
-  return res.redirect(returnTo);
 }
 
 export function logout(req, res) {
