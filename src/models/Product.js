@@ -23,7 +23,9 @@ const productSchema = new mongoose.Schema(
     state: { type: String, trim: true, index: true },
     country: { type: String, trim: true, index: true },
     images: { type: [String], default: [] },
+    imagePublicIds: { type: [String], default: [] },
     thumbnail: { type: String, trim: true },
+    thumbnailPublicId: { type: String, trim: true },
     contactPhone: { type: String, trim: true },
     status: {
       type: String,

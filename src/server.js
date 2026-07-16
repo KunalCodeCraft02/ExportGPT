@@ -20,9 +20,6 @@ app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const uploadsPath = path.join(__dirname, "..", "uploads");
-app.use("/uploads", express.static(uploadsPath));
-
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
 

@@ -3,6 +3,7 @@ import Farmer from "../models/Farmer.js";
 import Exporter from "../models/Exporter.js";
 import { updateState, STEPS } from "./conversation.service.js";
 import { sendLocalizedMessage } from "./whatsapp.service.js";
+import { deleteImages } from "./cloudinary.service.js";
 import logger from "../utils/logger.js";
 
 const PAGE_SIZE = 10;
@@ -97,13 +98,18 @@ export async function handleProductImageStep(phone, state) {
   );
 }
 
-export async function handleProductImageMessage(phone, imageUrl, state) {
+export async function handleProductImageMessage(phone, mediaResult, state) {
   const tempData = { ...(state.tempData || {}) };
   const productData = { ...(tempData.productRegistrationData || {}) };
 
+  const { url, publicId } = mediaResult;
+
   if (!productData.images) productData.images = [];
-  productData.images.push(imageUrl);
-  if (!productData.thumbnail) productData.thumbnail = imageUrl;
+  if (!productData.imagePublicIds) productData.imagePublicIds = [];
+  productData.images.push(url);
+  productData.imagePublicIds.push(publicId);
+  if (!productData.thumbnail) productData.thumbnail = url;
+  if (!productData.thumbnailPublicId) productData.thumbnailPublicId = publicId;
   tempData.productRegistrationData = productData;
 
   await updateState(phone, {
@@ -144,7 +150,9 @@ async function finishProductRegistration(phone, role, tempData) {
     state: owner?.state || "",
     country: owner?.country || "",
     images: productData.images || [],
+    imagePublicIds: productData.imagePublicIds || [],
     thumbnail: productData.thumbnail || "",
+    thumbnailPublicId: productData.thumbnailPublicId || "",
     contactPhone: owner?.phone || phone,
     status: "pending",
   });
@@ -420,6 +428,18 @@ export async function incrementProductLikes(productId) {
 }
 
 export async function deleteProduct(productId) {
+  const product = await Product.findById(productId);
+  if (!product) return null;
+
+  const publicIds = [
+    ...(product.imagePublicIds || []),
+    product.thumbnailPublicId,
+  ].filter(Boolean);
+
+  if (publicIds.length > 0) {
+    await deleteImages(publicIds);
+  }
+
   return Product.findByIdAndDelete(productId);
 }
 

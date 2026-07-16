@@ -1,7 +1,6 @@
 import { sendLocalizedMessage } from "../services/whatsapp.service.js";
 import askGroq, { askGroqWithContext } from "../services/groq.service.js";
-import path from "path";
-import { fileURLToPath } from "url";
+import { uploadImage } from "../services/cloudinary.service.js";
 import BuyerLead from "../models/BuyerLead.js";
 import Buyer from "../models/Buyer.js";
 import Farmer from "../models/Farmer.js";
@@ -53,6 +52,7 @@ import {
   searchProducts,
   formatProductResults,
   formatProductDetail,
+  deleteProduct,
   PRODUCT_REGISTRATION_STEPS,
   PRODUCT_CATEGORY_MAP,
 } from "../services/product.service.js";
@@ -67,9 +67,6 @@ import {
 import { getLanguageInstruction } from "../services/groq.service.js";
 import { isAllowed } from "../utils/rateLimiter.js";
 import axios from "axios";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // ─── Webhook verification (GET) ───────────────────────────────────────────────
 export function verifyWebhook(req, res) {
@@ -110,9 +107,9 @@ export async function handleWebhook(req, res) {
     if (message.type === "image") {
       const mediaId = message.image?.id;
       if (!mediaId) return;
-      const imageUrl = await getMediaUrl(mediaId);
-      if (!imageUrl) return;
-      return handleImageMessage(phone, imageUrl);
+      const mediaResult = await getMediaUrl(mediaId);
+      if (!mediaResult) return;
+      return handleImageMessage(phone, mediaResult);
     }
 
     const text = (message.text?.body || "").trim();
@@ -899,12 +896,12 @@ async function handleViewProduct(phone, text, state) {
   return sendLocalizedMessage(phone, formatted);
 }
 
-async function handleImageMessage(phone, imageUrl) {
+async function handleImageMessage(phone, mediaResult) {
   const state = await getState(phone);
   if (!state) return;
 
   if (state.currentStep === STEPS.WAITING_FOR_PRODUCT_IMAGE) {
-    const reply = await handleProductImageMessage(phone, imageUrl, state);
+    const reply = await handleProductImageMessage(phone, mediaResult, state);
     return sendLocalizedMessage(phone, reply);
   }
 }
@@ -931,15 +928,10 @@ async function getMediaUrl(mediaId) {
       },
     });
 
-    const mime = imageResponse.headers["content-type"] || "image/jpeg";
-    const ext = mime.includes("png") ? ".png" : ".jpg";
-    const filename = `${mediaId}${ext}`;
-    const filePath = path.join(__dirname, "..", "..", "uploads", "products", filename);
+    const buffer = Buffer.from(imageResponse.data);
+    const { secure_url, public_id } = await uploadImage(buffer, mediaId);
 
-    const fs = await import("fs");
-    fs.writeFileSync(filePath, Buffer.from(imageResponse.data));
-
-    return `/uploads/products/${filename}`;
+    return { url: secure_url, publicId: public_id };
   } catch (error) {
     console.error(`[webhook] getMediaUrl failed: ${error.message}`);
     return null;
@@ -1368,7 +1360,7 @@ async function handleProductDeleteIntent(phone, text, state) {
     return sendLocalizedMessage(phone, reply);
   }
 
-  await Product.findByIdAndDelete(product._id);
+  await deleteProduct(product._id);
   const reply = `✅ *${product.productName}* has been deleted.`;
   await saveAssistantMessage(phone, reply);
   return sendLocalizedMessage(phone, reply);
