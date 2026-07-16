@@ -28,7 +28,11 @@
         <option value="<%= item %>" <%= item === status ? "selected" : "" %>><%= item %></option>
       <% }) %>
     </select>
+    <input type="text" name="search" placeholder="Search name, email, phone, location..." value="<%= search %>" style="min-width:240px;">
     <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    <% if (search) { %>
+      <a href="/admin/profiles?role=<%= role %>&status=<%= status %>" class="btn btn-outline btn-sm">Clear</a>
+    <% } %>
   </form>
 
   <div class="table-container">
@@ -41,7 +45,7 @@
           <th>Products</th>
           <th>Location</th>
           <th>Status</th>
-          <th>Created</th>
+          <th>Registered</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -75,7 +79,7 @@
             <td data-label="Products"><%= formatList(profile.products || profile.productsNeeded || []) %></td>
             <td data-label="Location"><%= [profile.village, profile.district, profile.city, profile.state, profile.country].filter(Boolean).join(", ") || "Not listed" %></td>
             <td data-label="Status"><span class="badge <%= profile.verificationStatus %>"><%= profile.verificationStatus %></span></td>
-            <td data-label="Created"><%= new Date(profile.createdAt).toLocaleDateString() %></td>
+            <td data-label="Registered"><%= new Date(profile.createdAt).toLocaleDateString() %></td>
             <td data-label="Actions">
               <% if (profile.verificationStatus === "pending") { %>
                 <div class="review-actions">
@@ -88,7 +92,12 @@
                   </form>
                 </div>
               <% } else { %>
-                <span class="secondary-text"><%= profile.reviewedAt ? new Date(profile.reviewedAt).toLocaleDateString() : "" %></span>
+                <span class="secondary-text">
+                  <%= profile.reviewedAt ? new Date(profile.reviewedAt).toLocaleDateString() : "" %>
+                  <% if (profile.rejectionReason) { %>
+                    <br><span style="color:var(--danger);font-size:11px;"><%= profile.rejectionReason.substring(0, 50) %><%= profile.rejectionReason.length > 50 ? "..." : "" %></span>
+                  <% } %>
+                </span>
               <% } %>
             </td>
           </tr>
@@ -100,8 +109,8 @@
   <div class="pagination">
     <div class="pagination-info">Page <%= page %></div>
     <div class="pagination-links">
-      <% if (page > 1) { %><a class="btn btn-outline" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page - 1 %>">&larr; Previous</a><% } %>
-      <% if (hasNextPage) { %><a class="btn btn-primary" href="/admin/profiles?role=<%= role %>&status=<%= status %>&page=<%= page + 1 %>">Next &rarr;</a><% } %>
+      <% if (page > 1) { %><a class="btn btn-outline" href="/admin/profiles?role=<%= role %>&status=<%= status %>&search=<%= encodeURIComponent(search) %>&page=<%= page - 1 %>">&larr; Previous</a><% } %>
+      <% if (hasNextPage) { %><a class="btn btn-primary" href="/admin/profiles?role=<%= role %>&status=<%= status %>&search=<%= encodeURIComponent(search) %>&page=<%= page + 1 %>">Next &rarr;</a><% } %>
     </div>
   </div>
 </div>

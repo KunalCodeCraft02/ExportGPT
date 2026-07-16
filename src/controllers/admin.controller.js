@@ -72,13 +72,15 @@ export async function showProfiles(req, res) {
   const role = normalizeRole(req.query.role);
   const status = normalizeVerificationStatus(req.query.status);
   const page = Number(req.query.page) || 1;
-  const result = await listProfiles({ role, status, page });
+  const search = String(req.query.search || "").trim();
+  const result = await listProfiles({ role, status, page, search });
 
   return res.render("admin/profiles", {
     title: "Profile Verification",
     role,
     status,
     page,
+    search,
     profiles: result.profiles,
     hasNextPage: result.hasNextPage,
     roles: ["all", "exporter", "farmer", "buyer"],

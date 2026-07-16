@@ -55,6 +55,16 @@
   </div>
   <div class="stat-card">
     <div class="stat-card-header">
+      <span class="stat-card-label">Pending Farmers</span>
+      <div class="stat-card-icon yellow">&#127806;</div>
+    </div>
+    <div class="stat-card-value"><%= stats.pendingFarmers %></div>
+    <div class="stat-card-footer">
+      <a href="/admin/profiles?role=farmer&status=pending">Review &rarr;</a>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-header">
       <span class="stat-card-label">Pending Products</span>
       <div class="stat-card-icon yellow">&#128230;</div>
     </div>
@@ -62,13 +72,6 @@
     <div class="stat-card-footer">
       <a href="/admin/products?status=pending">Review now &rarr;</a>
     </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <span class="stat-card-label">Approved Products</span>
-      <div class="stat-card-icon green">&#9989;</div>
-    </div>
-    <div class="stat-card-value"><%= stats.approvedProducts %></div>
   </div>
   <div class="stat-card">
     <div class="stat-card-header">

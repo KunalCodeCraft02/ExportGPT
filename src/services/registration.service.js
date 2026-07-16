@@ -175,6 +175,8 @@ export function parseLanguageChoice(text) {
   return null;
 }
 
+export { getStatusMessage };
+
 export function getLanguagePrompt() {
   return (
     "🌐 Choose your preferred language\n\n" +
@@ -203,6 +205,22 @@ export async function resumeRegistration(phone, role, tempData = {}) {
 
 export async function startRoleRegistration(phone, role, currentState = {}) {
   const existingProfile = await getProfileForRole(phone, role);
+
+  // If existing profile is rejected, allow re-registration (update the existing doc)
+  if (existingProfile && existingProfile.verificationStatus === "rejected") {
+    const profileTempData = pickProfileTempData(existingProfile, role);
+    const baseTempData = await getBaseRegistrationTempData(phone, {
+      ...(currentState?.tempData || {}),
+      ...profileTempData,
+    });
+    const tempData = { ...profileTempData, ...baseTempData, ...(currentState?.tempData || {}) };
+
+    // Start from the beginning so user can update any field
+    const steps = getStepsForRole(role);
+    await updateState(phone, { role, currentStep: steps[0].key, tempData });
+    return getStepPrompt(role, steps[0]);
+  }
+
   const profileTempData = pickProfileTempData(existingProfile, role);
   const baseTempData = await getBaseRegistrationTempData(phone, {
     ...(currentState?.tempData || {}),
@@ -432,9 +450,56 @@ function getAlreadyRegisteredMessage(role) {
   );
 }
 
+function getStatusMessage(role, status, rejectionReason) {
+  const roleLabel = role === ROLES.FARMER ? "Farmer / Seller" : role === ROLES.EXPORTER ? "Exporter" : "Buyer";
+
+  if (status === "pending") {
+    return (
+      "⏳ Your " + roleLabel + " registration is *under review*.\n\n" +
+      "Our team is reviewing your profile. You will be notified once approved.\n\n" +
+      "Please wait for the admin approval."
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      "❌ Your " + roleLabel + " registration has been *rejected*.\n\n" +
+      (rejectionReason ? "Reason: " + rejectionReason + "\n\n" : "") +
+      "Please update your account details and submit again.\n\n" +
+      "Type *REGISTER* to update your details."
+    );
+  }
+
+  return null;
+}
+
 // ─── Save to DB ───────────────────────────────────────────────────────────────
 async function saveCompletedRegistration(phone, role, tempData) {
   const preferredLanguage = normalizeLanguage(tempData.preferredLanguage);
+
+  // Check for duplicate email (case-insensitive) across all role models
+  if (tempData.email) {
+    const emailRegex = new RegExp(`^${escapeRegexRegex(tempData.email)}$`, "i");
+    const [existingFarmer, existingExporter, existingBuyer] = await Promise.all([
+      Farmer.findOne({ email: emailRegex, phone: { $ne: phone } }).lean(),
+      Exporter.findOne({ email: emailRegex, phone: { $ne: phone } }).lean(),
+      Buyer.findOne({ email: emailRegex, phone: { $ne: phone } }).lean(),
+    ]);
+
+    const existing = existingFarmer || existingExporter || existingBuyer;
+    if (existing) {
+      const roleLabel = role === ROLES.FARMER ? "Farmer" : role === ROLES.EXPORTER ? "Exporter" : "Buyer";
+      return (
+        "❌ *Email already registered*\n\n" +
+        "This email is already registered to another " + roleLabel + " account.\n\n" +
+        "Please use a different email address, or log in with your existing account."
+      );
+    }
+  }
+
+  // Check if an existing profile for this phone already exists — update instead of create
+  const existingProfile = await getProfileForRole(phone, role);
+  const isUpdate = existingProfile && isProfileComplete(existingProfile, role);
 
   if (role === ROLES.EXPORTER) {
     await Exporter.findOneAndUpdate(
@@ -479,6 +544,10 @@ async function saveCompletedRegistration(phone, role, tempData) {
     "🔍 Your profile is pending admin verification. You'll be notified once approved.\n\n" +
     "Try:\n• *EXPORTERS* — find exporters\n• *BUYERS* — find buyers\n• *PRICE onion* — check mandi price\n• *HELP* — see all commands"
   );
+}
+
+function escapeRegexRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function updateUserLanguage(phone, name, preferredLanguage, district, country) {

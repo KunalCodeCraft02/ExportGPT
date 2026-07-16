@@ -141,18 +141,50 @@ export async function getDashboardStats() {
   };
 }
 
-export async function listProfiles({ role = "all", status = "pending", page = 1, limit = PAGE_SIZE } = {}) {
+export async function listProfiles({ role = "all", status = "pending", page = 1, limit = PAGE_SIZE, search = "" } = {}) {
   const normalizedRole = normalizeProfileRole(role);
   const normalizedStatus = normalizeVerificationStatus(status);
   const pageNumber = Math.max(Number(page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(limit) || PAGE_SIZE, 1), 100);
+  const searchTerm = String(search || "").trim();
 
   const roles = normalizedRole === "all" ? Object.keys(PROFILE_MODELS) : [normalizedRole];
   const [counts, grouped] = await Promise.all([
-    Promise.all(roles.map((profileRole) => PROFILE_MODELS[profileRole].countDocuments({ verificationStatus: normalizedStatus }))),
+    Promise.all(roles.map((profileRole) => {
+      const query = { verificationStatus: normalizedStatus };
+      if (searchTerm) {
+        const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        query.$or = [
+          { name: regex },
+          { email: regex },
+          { phone: regex },
+          { district: regex },
+          { state: regex },
+          { village: regex },
+          ...(profileRole === "farmer" ? [{ products: regex }] : []),
+          ...(profileRole === "exporter" ? [{ companyName: regex }, { products: regex }] : []),
+          ...(profileRole === "buyer" ? [{ companyName: regex }, { productsNeeded: regex }] : []),
+        ];
+      }
+      return PROFILE_MODELS[profileRole].countDocuments(query);
+    })),
     Promise.all(roles.map((profileRole) => {
       const model = PROFILE_MODELS[profileRole];
       const query = { verificationStatus: normalizedStatus };
+      if (searchTerm) {
+        const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        query.$or = [
+          { name: regex },
+          { email: regex },
+          { phone: regex },
+          { district: regex },
+          { state: regex },
+          { village: regex },
+          ...(profileRole === "farmer" ? [{ products: regex }] : []),
+          ...(profileRole === "exporter" ? [{ companyName: regex }, { products: regex }] : []),
+          ...(profileRole === "buyer" ? [{ companyName: regex }, { productsNeeded: regex }] : []),
+        ];
+      }
 
       return model
         .find(query)
@@ -182,11 +214,13 @@ export async function approveProfile({ type, id, adminId }) {
 
   if (!profile) throw new Error("Profile not found.");
 
+  const now = new Date();
   profile.verified = true;
   profile.verificationStatus = "approved";
-  profile.reviewedAt = new Date();
+  profile.reviewedAt = now;
   profile.reviewedBy = adminId;
   profile.rejectionReason = undefined;
+  profile.approvedAt = now;
 
   await profile.save();
   await notifyProfileDecision(profile, type, true);
@@ -201,12 +235,14 @@ export async function rejectProfile({ type, id, adminId, reason }) {
   if (!profile) throw new Error("Profile not found.");
 
   const rejectionReason = String(reason || "Profile rejected by admin.").trim().slice(0, 500);
+  const now = new Date();
 
   profile.verified = false;
   profile.verificationStatus = "rejected";
-  profile.reviewedAt = new Date();
+  profile.reviewedAt = now;
   profile.reviewedBy = adminId;
   profile.rejectionReason = rejectionReason;
+  profile.rejectedAt = now;
 
   await profile.save();
   await notifyProfileDecision(profile, type, false, rejectionReason);

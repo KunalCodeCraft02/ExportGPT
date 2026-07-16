@@ -17,6 +17,7 @@ import {
   handleRegistrationInput,
   parseRegistrationIntent,
   startRoleRegistration,
+  getStatusMessage,
 } from "../services/registration.service.js";
 import {
   getState,
@@ -125,6 +126,20 @@ async function routeMessage(phone, text) {
         role: existingProfile.role,
         tempData: { preferredLanguage: existingProfile.preferredLanguage || "english" },
       });
+
+      // Handle pending status
+      if (existingProfile.status === "pending") {
+        const statusMsg = getStatusMessage(existingProfile.role, "pending");
+        return sendLocalizedMessage(phone, statusMsg);
+      }
+
+      // Handle rejected status
+      if (existingProfile.status === "rejected") {
+        const statusMsg = getStatusMessage(existingProfile.role, "rejected", existingProfile.rejectionReason);
+        return sendLocalizedMessage(phone, statusMsg);
+      }
+
+      // Approved — normal welcome back
       return sendLocalizedMessage(
         phone,
         `Welcome back, *${existingProfile.name}*! 👋\n\n` +
@@ -150,6 +165,17 @@ async function routeMessage(phone, text) {
 
   if (normalized === "REGISTER") {
     if (role) {
+      // Check if the user's profile is rejected — allow re-registration
+      const existingProfile = await findExistingProfile(phone);
+      if (existingProfile && existingProfile.status === "rejected") {
+        const reply = await startRoleRegistration(phone, role, state);
+        return sendLocalizedMessage(phone, reply);
+      }
+      // Check if pending — show status message
+      if (existingProfile && existingProfile.status === "pending") {
+        const statusMsg = getStatusMessage(role, "pending");
+        return sendLocalizedMessage(phone, statusMsg);
+      }
       const reply = await resumeRegistration(phone, role, tempData || {});
       return sendLocalizedMessage(phone, reply);
     }
@@ -163,6 +189,19 @@ async function routeMessage(phone, text) {
 
   const registrationIntent = parseRegistrationIntent(text);
   if (registrationIntent) {
+    // Check if user already has a profile with this role
+    const existingProfile = await findExistingProfile(phone);
+    if (existingProfile && existingProfile.role === registrationIntent) {
+      if (existingProfile.status === "rejected") {
+        // Allow re-registration for rejected profiles
+        const reply = await startRoleRegistration(phone, registrationIntent, state);
+        return sendLocalizedMessage(phone, reply);
+      }
+      if (existingProfile.status === "pending") {
+        const statusMsg = getStatusMessage(registrationIntent, "pending");
+        return sendLocalizedMessage(phone, statusMsg);
+      }
+    }
     const reply = await startRoleRegistration(phone, registrationIntent, state);
     return sendLocalizedMessage(phone, reply);
   }
@@ -223,6 +262,19 @@ async function routeMessage(phone, text) {
   }
 
   // ── Registered user — marketplace & command routing ───────────────────────
+
+  // Check verification status before allowing marketplace access
+  if (role && currentStep === STEPS.READY) {
+    const existingProfile = await findExistingProfile(phone);
+    if (existingProfile && existingProfile.status === "pending") {
+      const statusMsg = getStatusMessage(role, "pending");
+      return sendLocalizedMessage(phone, statusMsg);
+    }
+    if (existingProfile && existingProfile.status === "rejected") {
+      const statusMsg = getStatusMessage(role, "rejected", existingProfile.rejectionReason);
+      return sendLocalizedMessage(phone, statusMsg);
+    }
+  }
 
   // Send Request (reply "1" when viewing exporters)
   if (normalized === "1" && state.tempData?.searchType === "exporters") {
@@ -802,39 +854,14 @@ async function findExistingProfile(phone) {
     Buyer.findOne({ phone }).lean(),
   ]);
 
-  if (farmer && (farmer.verificationStatus === "approved" || farmer.verified)) {
-    return {
-      role: ROLES.FARMER,
-      roleLabel: "Farmer / Seller",
-      name: farmer.name,
-      preferredLanguage: farmer.preferredLanguage,
-    };
-  }
-
-  if (exporter && (exporter.verificationStatus === "approved" || exporter.verified)) {
-    return {
-      role: ROLES.EXPORTER,
-      roleLabel: "Exporter",
-      name: exporter.name,
-      preferredLanguage: exporter.preferredLanguage,
-    };
-  }
-
-  if (buyer && (buyer.verificationStatus === "approved" || buyer.verified)) {
-    return {
-      role: ROLES.BUYER,
-      roleLabel: "Buyer",
-      name: buyer.name,
-      preferredLanguage: buyer.preferredLanguage,
-    };
-  }
-
   if (farmer) {
     return {
       role: ROLES.FARMER,
       roleLabel: "Farmer / Seller",
       name: farmer.name,
       preferredLanguage: farmer.preferredLanguage,
+      status: farmer.verificationStatus || "pending",
+      rejectionReason: farmer.rejectionReason,
     };
   }
 
@@ -844,6 +871,8 @@ async function findExistingProfile(phone) {
       roleLabel: "Exporter",
       name: exporter.name,
       preferredLanguage: exporter.preferredLanguage,
+      status: exporter.verificationStatus || "pending",
+      rejectionReason: exporter.rejectionReason,
     };
   }
 
@@ -853,6 +882,8 @@ async function findExistingProfile(phone) {
       roleLabel: "Buyer",
       name: buyer.name,
       preferredLanguage: buyer.preferredLanguage,
+      status: buyer.verificationStatus || "pending",
+      rejectionReason: buyer.rejectionReason,
     };
   }
 

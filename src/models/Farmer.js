@@ -27,6 +27,8 @@ const farmerSchema = new mongoose.Schema(
       index: true,
     },
     rejectionReason: { type: String, trim: true },
+    approvedAt: { type: Date },
+    rejectedAt: { type: Date },
     reviewedAt: { type: Date },
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -35,10 +37,11 @@ const farmerSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: { createdAt: true, updatedAt: false },
+    timestamps: { createdAt: true, updatedAt: true },
   }
 );
 
+farmerSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { email: { $exists: true, $ne: null, $ne: "" } } });
 farmerSchema.index({ products: "text", name: "text", district: "text", state: "text" });
 farmerSchema.index({ phone: 1, country: 1 });
 farmerSchema.index({ verificationStatus: 1, createdAt: -1 });
