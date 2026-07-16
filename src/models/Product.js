@@ -27,7 +27,7 @@ const productSchema = new mongoose.Schema(
     contactPhone: { type: String, trim: true },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "paused", "sold"],
       default: "pending",
       index: true,
     },

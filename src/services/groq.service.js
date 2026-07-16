@@ -6,11 +6,44 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// ── Response cache (in-memory, 1 hour TTL) ──────────────────────────────────
+const responseCache = new Map();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getCachedResponse(key) {
+  const cached = responseCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.response;
+  }
+  responseCache.delete(key);
+  return null;
+}
+
+function setCachedResponse(key, response) {
+  // Only cache short responses (under 500 chars) to avoid memory bloat
+  if (response.length < 500) {
+    responseCache.set(key, { response, timestamp: Date.now() });
+  }
+  // Limit cache size
+  if (responseCache.size > 500) {
+    const oldest = responseCache.keys().next().value;
+    responseCache.delete(oldest);
+  }
+}
+
 /**
  * Simple single-message Groq call (backward compatible).
  */
 const askGroq = async (question) => {
   try {
+    // Check cache first
+    const cacheKey = `simple:${question.toLowerCase().trim()}`;
+    const cached = getCachedResponse(cacheKey);
+    if (cached) {
+      logger.info(`Groq cache hit for: "${question.substring(0, 50)}"`);
+      return cached;
+    }
+
     logger.info(`Groq request: "${question}"`);
 
     const chatCompletion = await groq.chat.completions.create({
@@ -32,6 +65,7 @@ const askGroq = async (question) => {
     const reply = chatCompletion.choices[0]?.message?.content || "Sorry, I could not generate a response. Please try again.";
 
     logger.info(`Groq response received (${reply.length} chars)`);
+    setCachedResponse(cacheKey, reply);
     return reply;
   } catch (error) {
     logger.error(`Groq API error: ${error.message}`);

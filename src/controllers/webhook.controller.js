@@ -6,6 +6,7 @@ import BuyerLead from "../models/BuyerLead.js";
 import Buyer from "../models/Buyer.js";
 import Farmer from "../models/Farmer.js";
 import Exporter from "../models/Exporter.js";
+import Product from "../models/Product.js";
 import User from "../models/User.js";
 import {
   getWelcomeMessage,
@@ -64,6 +65,7 @@ import {
   summarizeContext,
 } from "../services/chatMemory.service.js";
 import { getLanguageInstruction } from "../services/groq.service.js";
+import { isAllowed } from "../utils/rateLimiter.js";
 import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +100,12 @@ export async function handleWebhook(req, res) {
     if (!message) return;
 
     phone = message.from;
+
+    // Rate limit check
+    if (!isAllowed(phone)) {
+      logger.warn(`Rate limit exceeded for ${phone}`);
+      return sendLocalizedMessage(phone, "⚠️ You're sending too many messages. Please wait a moment and try again.");
+    }
 
     if (message.type === "image") {
       const mediaId = message.image?.id;
@@ -326,6 +334,30 @@ async function routeMessage(phone, text) {
 
     case "product_search":
       return handleProductSearchIntent(phone, text, state);
+
+    case "product_create":
+      return handleProductCreateIntent(phone, text, state);
+
+    case "my_products":
+      return handleMyProductsIntent(phone, state);
+
+    case "update_profile":
+      return handleUpdateProfileIntent(phone, role, state);
+
+    case "product_edit":
+      return handleProductEditIntent(phone, text, state);
+
+    case "product_delete":
+      return handleProductDeleteIntent(phone, text, state);
+
+    case "product_pause":
+      return handleProductPauseIntent(phone, text, state);
+
+    case "product_resume":
+      return handleProductResumeIntent(phone, text, state);
+
+    case "mark_sold":
+      return handleMarkSoldIntent(phone, text, state);
 
     case "demand_intelligence":
       return handleDemandIntent(phone, text, entities, language, state);
@@ -1045,6 +1077,42 @@ async function handleProductSearchIntent(phone, text, state) {
   return sendLocalizedMessage(phone, formatted);
 }
 
+async function handleProductCreateIntent(phone, text, state) {
+  // Check if user is registered as farmer or exporter
+  if (!state.role) {
+    const reply = (
+      "⚠️ You need to register first before adding products.\n\n" +
+      "Type *REGISTER* to get started."
+    );
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  // Check verification status
+  const existingProfile = await findExistingProfile(phone);
+  if (existingProfile && existingProfile.status === "pending") {
+    const reply = (
+      "⏳ Your profile is under review.\n\n" +
+      "You can add products once your profile is approved."
+    );
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+  if (existingProfile && existingProfile.status === "rejected") {
+    const reply = (
+      "❌ Your profile was not approved.\n\n" +
+      "Please update your registration first."
+    );
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  // Start product registration flow
+  const reply = await startProductRegistration(phone, state);
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
 async function handleDemandIntent(phone, text, entities, language, state) {
   // Route to the demand intelligence module
   const { getProductDemandData, formatDemandIntelligence, getExportAssistantReply } = await import("../services/demandintelligence.service.js");
@@ -1139,6 +1207,283 @@ async function handleAIFallback(phone, text, language, state, updatedTempData) {
     history,
     language,
   });
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Seller Dashboard Handlers ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function getOwnerForProduct(phone, ownerType) {
+  if (ownerType === "Farmer") {
+    return Farmer.findOne({ phone }).lean();
+  }
+  return Exporter.findOne({ phone }).lean();
+}
+
+async function handleMyProductsIntent(phone, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first to manage products.\n\nType *REGISTER* to get started.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+
+  if (!owner) {
+    const reply = "❌ Your profile not found. Please register again.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!products.length) {
+    const reply = (
+      "📦 *My Products*\n\n" +
+      "You haven't listed any products yet.\n\n" +
+      "Type *ADD PRODUCT* to list your first product."
+    );
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const statusEmoji = { pending: "⏳", approved: "✅", rejected: "❌", paused: "⏸️", sold: "💰" };
+  const cards = products.map((p, i) => (
+    `*${i + 1}. ${p.productName}*\n` +
+    `💰 ${p.price || "—"}\n` +
+    `📊 ${p.quantity || "—"}\n` +
+    `${statusEmoji[p.status] || "❓"} Status: ${p.status}\n` +
+    `Reply *EDIT ${i + 1}* to edit, *DELETE ${i + 1}* to remove`
+  )).join("\n\n");
+
+  const reply = (
+    `📦 *My Products* (${products.length})\n\n` +
+    cards + "\n\n" +
+    "Commands:\n" +
+    "• *ADD PRODUCT* — Add new product\n" +
+    "• *EDIT <number>* — Edit product\n" +
+    "• *DELETE <number>* — Remove product"
+  );
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleUpdateProfileIntent(phone, role, state) {
+  if (!role) {
+    const reply = "⚠️ You don't have a profile yet.\n\nType *REGISTER* to create one.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const reply = await resumeRegistration(phone, role, state.tempData || {});
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleProductEditIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(?:edit|update|change|modify)\s*(?:product)?\s*(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which product to edit.\n\nExample: *EDIT 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productIndex = parseInt(match[1]) - 1;
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id }).sort({ createdAt: -1 }).lean();
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = `❌ Product #${match[1]} not found. You have ${products.length} products.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  // Start edit flow - ask what to change
+  await updateState(phone, {
+    currentStep: "waiting_for_product_edit_field",
+    tempData: { ...(state.tempData || {}), editingProductId: product._id.toString() },
+  });
+
+  const reply = (
+    `📝 *Editing: ${product.productName}*\n\n` +
+    `Current details:\n` +
+    `💰 Price: ${product.price || "—"}\n` +
+    `📊 Quantity: ${product.quantity || "—"}\n` +
+    `📝 Description: ${product.description || "—"}\n\n` +
+    `What would you like to change?\n` +
+    `Reply: *price*, *quantity*, *description*, or *CANCEL*`
+  );
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleProductDeleteIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(?:delete|remove|cancel)\s*(?:product|listing)?\s*(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which product to delete.\n\nExample: *DELETE 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productIndex = parseInt(match[1]) - 1;
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id }).sort({ createdAt: -1 }).lean();
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = `❌ Product #${match[1]} not found.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await Product.findByIdAndDelete(product._id);
+  const reply = `✅ *${product.productName}* has been deleted.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleProductPauseIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(?:pause|hide|deactivate)\s*(?:product|listing)?\s*(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which product to pause.\n\nExample: *PAUSE 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productIndex = parseInt(match[1]) - 1;
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id }).sort({ createdAt: -1 }).lean();
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = `❌ Product #${match[1]} not found.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await Product.findByIdAndUpdate(product._id, { status: "paused" });
+  const reply = `⏸️ *${product.productName}* has been paused and is no longer visible in the marketplace.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleProductResumeIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(?:resume|show|activate|reactivate)\s*(?:product|listing)?\s*(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which product to resume.\n\nExample: *RESUME 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productIndex = parseInt(match[1]) - 1;
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id }).sort({ createdAt: -1 }).lean();
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = `❌ Product #${match[1]} not found.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await Product.findByIdAndUpdate(product._id, { status: "approved" });
+  const reply = `✅ *${product.productName}* is now active and visible in the marketplace.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleMarkSoldIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(?:mark|set)\s*sold\s*(?:product|listing)?\s*(\d+)|(\d+)\s*(?:sold|bech)/i);
+  if (!match) {
+    const reply = "Please specify which product is sold.\n\nExample: *SOLD 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productIndex = parseInt(match[1] || match[2]) - 1;
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id }).sort({ createdAt: -1 }).lean();
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = `❌ Product #${match[1] || match[2]} not found.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await Product.findByIdAndUpdate(product._id, { status: "sold" });
+  const reply = `💰 *${product.productName}* marked as sold. Congratulations on the sale!`;
   await saveAssistantMessage(phone, reply);
   return sendLocalizedMessage(phone, reply);
 }

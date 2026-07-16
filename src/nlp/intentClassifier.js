@@ -70,11 +70,78 @@ const INTENTS = [
     ],
   },
   {
+    name: "product_create",
+    priority: 20,
+    patterns: [
+      /\b(add\s*product|create\s*product|list\s*product|sell\s*product|new\s*product)\b/i,
+      /\b(i\s*want\s*to\s*sell|sell\s*my|list\s*my|add\s*my|create\s*listing)\b/i,
+      /\b(register\s*product|product\s*list\s*karo|product\s*add\s*karo)\b/i,
+      /\b(my\s*crop\s*is\s*ready|crop\s*bech|sell\s*crop|list\s*crop)\b/i,
+      /\b(want\s*to\s*list|list\s*it|sell\s*it|add\s*it)\b/i,
+    ],
+  },
+  {
     name: "product_search",
     priority: 15,
     patterns: [
-      /\b(show\s*products?|browse\s*products?|product\s*list|marketplace|product\s*dhund)/i,
-      /\b(view\s*\d|add\s*product|list\s*product)\b/i,
+      /\b(show\s*products?|browse\s*products?|product\s*list|marketplace|product\s*dhund)\b/i,
+      /\b(view\s*product|find\s*product|search\s*product|available\s*products?)\b/i,
+    ],
+  },
+  {
+    name: "my_products",
+    priority: 20,
+    patterns: [
+      /\b(my\s*products?|mera\s*product|my\s*listing|my\s*crops?|my\s*stock)\b/i,
+      /\b(maine\s*add\s*kya|mere\s*product|product\s*dikhao|list\s*dikhao)\b/i,
+    ],
+  },
+  {
+    name: "update_profile",
+    priority: 18,
+    patterns: [
+      /\b(update\s*profile|edit\s*profile|change\s*details|update\s*registration)\b/i,
+      /\b(profile\s*update|details\s*change|info\s*update)\b/i,
+    ],
+  },
+  {
+    name: "product_edit",
+    priority: 18,
+    patterns: [
+      /\b(edit\s*product|update\s*product|change\s*product|modify\s*product)\b/i,
+      /\b(product\s*edit|product\s*update)\b/i,
+    ],
+  },
+  {
+    name: "product_delete",
+    priority: 18,
+    patterns: [
+      /\b(delete\s*product|remove\s*product|cancel\s*listing|remove\s*listing)\b/i,
+      /\b(product\s*delete|listing\s*delete|listing\s*remove)\b/i,
+    ],
+  },
+  {
+    name: "product_pause",
+    priority: 18,
+    patterns: [
+      /\b(pause\s*product|hide\s*product|deactivate\s*product|pause\s*listing)\b/i,
+      /\b(product\s*pause|listing\s*pause|暂时\s*下架)\b/i,
+    ],
+  },
+  {
+    name: "product_resume",
+    priority: 18,
+    patterns: [
+      /\b(resume\s*product|show\s*product|activate\s*product|resume\s*listing)\b/i,
+      /\b(product\s*resume|listing\s*resume|reactivate)\b/i,
+    ],
+  },
+  {
+    name: "mark_sold",
+    priority: 18,
+    patterns: [
+      /\b(mark\s*sold|sold\s*out|product\s*sold|listing\s*sold|bech\s*diya)\b/i,
+      /\b(sold|bik\s*gya|ho\s*gya\s*sale)\b/i,
     ],
   },
   {
@@ -245,6 +312,14 @@ export function getIntentLabel(intent) {
     exporter_search: "Exporter Search",
     buyer_search: "Buyer Search",
     product_search: "Product Search",
+    product_create: "Product Create",
+    my_products: "My Products",
+    update_profile: "Update Profile",
+    product_edit: "Product Edit",
+    product_delete: "Product Delete",
+    product_pause: "Product Pause",
+    product_resume: "Product Resume",
+    mark_sold: "Mark Sold",
     demand_intelligence: "Export/Demand Intelligence",
     weather: "Weather",
     crop_recommendation: "Crop Recommendation",

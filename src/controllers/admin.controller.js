@@ -241,5 +241,5 @@ function normalizeLeadStatus(status) {
 
 function normalizeProductStatus(status) {
   const normalized = String(status || "pending").trim().toLowerCase();
-  return ["all", "pending", "approved", "rejected"].includes(normalized) ? normalized : "pending";
+  return ["all", "pending", "approved", "rejected", "paused", "sold"].includes(normalized) ? normalized : "pending";
 }
