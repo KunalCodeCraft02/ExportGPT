@@ -3,6 +3,7 @@ import askGroq from "../services/groq.service.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import BuyerLead from "../models/BuyerLead.js";
+import Buyer from "../models/Buyer.js";
 import Farmer from "../models/Farmer.js";
 import Exporter from "../models/Exporter.js";
 import {
@@ -117,6 +118,21 @@ async function routeMessage(phone, text) {
   const state = await getState(phone);
 
   if (!state) {
+    const existingProfile = await findExistingProfile(phone);
+    if (existingProfile) {
+      await updateState(phone, {
+        currentStep: STEPS.READY,
+        role: existingProfile.role,
+        tempData: { preferredLanguage: existingProfile.preferredLanguage || "english" },
+      });
+      return sendLocalizedMessage(
+        phone,
+        `Welcome back, *${existingProfile.name}*! 👋\n\n` +
+        `You're registered as a *${existingProfile.roleLabel}*.\n\n` +
+        `Type *HELP* to see available commands.`
+      );
+    }
+
     await updateState(phone, {
       currentStep: STEPS.ROLE_SELECTION,
       role: null,
@@ -776,4 +792,69 @@ async function getMediaUrl(mediaId) {
     console.error(`[webhook] getMediaUrl failed: ${error.message}`);
     return null;
   }
+}
+
+// ─── Detect returning users by phone number ──────────────────────────────────
+async function findExistingProfile(phone) {
+  const [farmer, exporter, buyer] = await Promise.all([
+    Farmer.findOne({ phone }).lean(),
+    Exporter.findOne({ phone }).lean(),
+    Buyer.findOne({ phone }).lean(),
+  ]);
+
+  if (farmer && (farmer.verificationStatus === "approved" || farmer.verified)) {
+    return {
+      role: ROLES.FARMER,
+      roleLabel: "Farmer / Seller",
+      name: farmer.name,
+      preferredLanguage: farmer.preferredLanguage,
+    };
+  }
+
+  if (exporter && (exporter.verificationStatus === "approved" || exporter.verified)) {
+    return {
+      role: ROLES.EXPORTER,
+      roleLabel: "Exporter",
+      name: exporter.name,
+      preferredLanguage: exporter.preferredLanguage,
+    };
+  }
+
+  if (buyer && (buyer.verificationStatus === "approved" || buyer.verified)) {
+    return {
+      role: ROLES.BUYER,
+      roleLabel: "Buyer",
+      name: buyer.name,
+      preferredLanguage: buyer.preferredLanguage,
+    };
+  }
+
+  if (farmer) {
+    return {
+      role: ROLES.FARMER,
+      roleLabel: "Farmer / Seller",
+      name: farmer.name,
+      preferredLanguage: farmer.preferredLanguage,
+    };
+  }
+
+  if (exporter) {
+    return {
+      role: ROLES.EXPORTER,
+      roleLabel: "Exporter",
+      name: exporter.name,
+      preferredLanguage: exporter.preferredLanguage,
+    };
+  }
+
+  if (buyer) {
+    return {
+      role: ROLES.BUYER,
+      roleLabel: "Buyer",
+      name: buyer.name,
+      preferredLanguage: buyer.preferredLanguage,
+    };
+  }
+
+  return null;
 }
