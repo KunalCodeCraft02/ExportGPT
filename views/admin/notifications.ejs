@@ -1,0 +1,24 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Notifications</h1>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Message</th><th>Read</th><th>WhatsApp</th></tr></thead>
+    <tbody>
+      <% notifications.forEach(function(n) { %>
+        <tr>
+          <td><%= new Date(n.createdAt).toLocaleDateString('en-IN') %></td>
+          <td><%= n.type %></td>
+          <td><%= n.title %></td>
+          <td><%= n.message.substring(0, 80) %><%= n.message.length > 80 ? '...' : '' %></td>
+          <td><%= n.read ? '✅' : '🔴' %></td>
+          <td><%= n.sentViaWhatsApp ? '✅' : '—' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/notifications?page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

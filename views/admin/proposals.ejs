@@ -1,0 +1,29 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Proposals</h1>
+  <div class="mb-3">
+    <a href="/admin/proposals?status=all" class="btn btn-sm <%= status === 'all' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+    <% statuses.filter(s => s !== 'all').forEach(function(s) { %>
+      <a href="/admin/proposals?status=<%= s %>" class="btn btn-sm <%= status === s ? 'btn-primary' : 'btn-outline-primary' %>"><%= s %></a>
+    <% }); %>
+  </div>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>Date</th><th>Product</th><th>Status</th><th>Sender</th><th>Receiver</th></tr></thead>
+    <tbody>
+      <% proposals.forEach(function(p) { %>
+        <tr>
+          <td><%= new Date(p.createdAt).toLocaleDateString('en-IN') %></td>
+          <td><%= p.productName %></td>
+          <td><span class="badge bg-<%= p.status === 'accepted' ? 'success' : p.status === 'rejected' ? 'danger' : 'warning' %>"><%= p.status %></span></td>
+          <td><%= p.senderType %> (<%= p.senderId %>)</td>
+          <td><%= p.receiverType %> (<%= p.receiverId %>)</td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/proposals?status=<%= status %>&page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

@@ -12,10 +12,6 @@ export const STEPS = {
   WAITING_FOR_LANGUAGE_SELECTION: "waiting_for_language_selection",
   WAITING_FOR_LEAD_MESSAGE: "waiting_for_lead_message",
   WAITING_FOR_EXPORTER_RESPONSE: "waiting_for_exporter_response",
-  WAITING_FOR_PRICE_PRODUCT: "waiting_for_price_product",
-  WAITING_FOR_LOGISTICS_CHOICE: "waiting_for_logistics_choice",
-  WAITING_FOR_ESCROW_CONFIRM: "waiting_for_escrow_confirm",
-  WAITING_FOR_AI_EXPORT_QUESTION: "waiting_for_ai_export_question",
   READY: "ready",
   MARKETPLACE_PAGE: "marketplace_page",
   WAITING_FOR_PRODUCT_NAME: "waiting_for_product_name",
@@ -24,6 +20,25 @@ export const STEPS = {
   WAITING_FOR_PRODUCT_PRICE: "waiting_for_product_price",
   WAITING_FOR_PRODUCT_QUANTITY: "waiting_for_product_quantity",
   WAITING_FOR_PRODUCT_IMAGE: "waiting_for_product_image",
+  // Proposal flow
+  WAITING_FOR_MATCH_SELECTION: "waiting_for_match_selection",
+  WAITING_FOR_PROPOSAL_MESSAGE: "waiting_for_proposal_message",
+  WAITING_FOR_PROPOSAL_RESPONSE: "waiting_for_proposal_response",
+  WAITING_FOR_COUNTER_OFFER: "waiting_for_counter_offer",
+  WAITING_FOR_INFO_REQUEST: "waiting_for_info_request",
+  // Requirement flow
+  WAITING_FOR_REQUIREMENT_COMMODITY: "waiting_for_requirement_commodity",
+  WAITING_FOR_REQUIREMENT_QUANTITY: "waiting_for_requirement_quantity",
+  WAITING_FOR_REQUIREMENT_PRICE: "waiting_for_requirement_price",
+  WAITING_FOR_REQUIREMENT_DATE: "waiting_for_requirement_date",
+  WAITING_FOR_REQUIREMENT_LOCATION: "waiting_for_requirement_location",
+  WAITING_FOR_REQUIREMENT_NOTES: "waiting_for_requirement_notes",
+  // Deal flow
+  WAITING_FOR_DEAL_STATUS: "waiting_for_deal_status",
+  WAITING_FOR_DEAL_NOTES: "waiting_for_deal_notes",
+  // Rating flow
+  WAITING_FOR_RATING_STARS: "waiting_for_rating_stars",
+  WAITING_FOR_RATING_REVIEW: "waiting_for_rating_review",
 };
 
 export async function getState(phone) {

@@ -37,15 +37,6 @@ const INTENTS = [
     ],
   },
   {
-    name: "market_price",
-    priority: 25,
-    patterns: [
-      /\b(price|rate|rates|prices|bhav|bhaav|daam|dam|rate|cost|mandi|market)\b/i,
-      /\b(aaj|kal|today|yesterday|current|latest|abhi)\b.*\b(price|rate|bhav)\b/i,
-      /\b(price|rate|bhav)\b.*\b(aaj|kal|today|current|latest)\b/i,
-    ],
-  },
-  {
     name: "farmer_search",
     priority: 15,
     patterns: [
@@ -145,82 +136,139 @@ const INTENTS = [
     ],
   },
   {
-    name: "demand_intelligence",
+    name: "send_proposal",
+    priority: 22,
+    patterns: [
+      /\b(send\s*proposal|proposal\s*bhej|propose|bhejo|send\s*offer)\b/i,
+      /\b(i\s*want\s*to\s*send|send\s*to\s*buyer|send\s*to\s*exporter)\b/i,
+    ],
+  },
+  {
+    name: "view_proposals",
     priority: 20,
     patterns: [
-      /\b(demand|global\s*demand|export\s*demand|buyer\s*demand)\b/i,
-      /\b(can\s*i\s*export|export\s*guide|export\s*document|export\s*certif)/i,
-      /\b(countries?\s*buy|which\s*countries?|kahan\s*bech|export\s*kahan)\b/i,
+      /\b(proposals?|my\s*proposals?|view\s*proposals?|check\s*proposals?|proposal\s*list)\b/i,
+      /\b(proposal\s*dikhao|mere\s*proposal)\b/i,
     ],
   },
   {
-    name: "weather",
-    priority: 10,
+    name: "accept_proposal",
+    priority: 22,
     patterns: [
-      /\b(weather|mausam|rain|barish|temperature|tapman|samasya|storm|flood)\b/i,
+      /\b(accept\s*proposal|proposal\s*accept|manzoor|accept\s*kar|haan\s*mein)\b/i,
     ],
   },
   {
-    name: "crop_recommendation",
-    priority: 10,
+    name: "reject_proposal",
+    priority: 22,
     patterns: [
-      /\b(crop\s*recommend|what\s*should\s*i\s*grow|kya\s*ugaye|which\s*crop|fasal\s*suggest)/i,
+      /\b(reject\s*proposal|proposal\s*reject|nahi\s*chahta|decline)\b/i,
     ],
   },
   {
-    name: "government_scheme",
-    priority: 10,
+    name: "counter_offer",
+    priority: 22,
     patterns: [
-      /\b(government\s*scheme|sarkari\s*yojana|subsidy|loan|pm\s*kisan|pmfby|crop\s*insurance)\b/i,
+      /\b(counter\s*offer|offer\s*badlo|new\s*price|different\s*price)\b/i,
     ],
   },
   {
-    name: "logistics",
-    priority: 10,
+    name: "request_info",
+    priority: 22,
     patterns: [
-      /\b(logistics|transport|delivery|shipping|truck|gaadi|bhejna|freight|carrier)\b/i,
+      /\b(more\s*info|request\s*info|details\s*chahiye|information\s*needed)\b/i,
     ],
   },
   {
-    name: "payment",
-    priority: 10,
+    name: "create_requirement",
+    priority: 20,
     patterns: [
-      /\b(payment|pay|paisa|paise|cash|transfer|upi|bank|escrow|bhugtan)\b/i,
+      /\b(post\s*requirement|create\s*requirement|need\s*product|looking\s*for|kharidna\s*hai)\b/i,
+      /\b(requirement\s*post|requirement\s*banao|i\s*need|we\s*need)\b/i,
     ],
   },
   {
-    name: "quality",
-    priority: 10,
+    name: "view_requirements",
+    priority: 20,
     patterns: [
-      /\b(quality|grading|standard|certif|fssai|organic|pesticide|residue)\b/i,
+      /\b(requirements?|my\s*requirements?|view\s*requirements?|check\s*requirements?)\b/i,
+      /\b(requirement\s*dikhao|mere\s*requirement)\b/i,
     ],
   },
   {
-    name: "packaging",
-    priority: 10,
+    name: "view_deals",
+    priority: 20,
     patterns: [
-      /\b(packaging|pack|bag|box|carton|container|gunny|packing)\b/i,
+      /\b(deals?|my\s*deals?|active\s*deals?|view\s*deals?|check\s*deals?|deal\s*tracker)\b/i,
+      /\b(deal\s*dikhao|mere\s*deal|order\s*status)\b/i,
     ],
   },
   {
-    name: "trend",
+    name: "update_deal",
+    priority: 20,
+    patterns: [
+      /\b(update\s*deal|deal\s*update|change\s*status|mark\s*delivered|mark\s*shipped)\b/i,
+    ],
+  },
+  {
+    name: "deal_timeline",
+    priority: 18,
+    patterns: [
+      /\b(deal\s*timeline|deal\s*history|stage\s*history|deal\s*progress)\b/i,
+    ],
+  },
+  {
+    name: "rate_deal",
+    priority: 18,
+    patterns: [
+      /\b(rate\s*deal|rate\s*seller|rate\s*buyer|give\s*rating|review\s*deal)\b/i,
+      /\b(rating\s*do|review\s*do|stars\s*do)\b/i,
+    ],
+  },
+  {
+    name: "view_ratings",
     priority: 15,
     patterns: [
-      /\b(trend|analysis|forecast|outlook|future\s*price|price\s*forecast)\b/i,
+      /\b(ratings?|my\s*ratings?|view\s*ratings?|check\s*ratings?|reviews?)\b/i,
     ],
   },
   {
-    name: "complaint",
-    priority: 5,
+    name: "trade_score",
+    priority: 15,
     patterns: [
-      /\b(complaint|problem|issue|not\s*working|broken|bug|error|grievance)\b/i,
+      /\b(trade\s*score|my\s*score|trust\s*score|reputation|profile\s*score)\b/i,
+      /\b(score\s*dikhao|meri\s*score|trust\s*level)\b/i,
     ],
   },
   {
-    name: "feedback",
-    priority: 5,
+    name: "view_matches",
+    priority: 20,
     patterns: [
-      /\b(feedback|suggestion|improve|good|great|excellent|awesome|nice|thanks|thank\s*you)\b/i,
+      /\b(matches?|ai\s*matches?|find\s*matches?|show\s*matches?|matching\s*buyers?)\b/i,
+      /\b(match\s*dikhao|kaun\s*khareedega|matching\s*sellers?)\b/i,
+    ],
+  },
+  {
+    name: "select_match",
+    priority: 22,
+    patterns: [
+      /\b(select\s*\d|choose\s*\d|pick\s*\d|send\s*to\s*\d)\b/i,
+      /^\s*(select|choose|pick)\s+(\d+)\s*$/i,
+    ],
+  },
+  {
+    name: "packaging_guide",
+    priority: 15,
+    patterns: [
+      /\b(packaging|pack\s*guide|packing\s*guide|how\s*to\s*pack|packaging\s*guide)\b/i,
+    ],
+  },
+  {
+    name: "notifications",
+    priority: 18,
+    patterns: [
+      /\b(notifications?|alerts?|messages?|通知|notify|notification\s*list)\b/i,
+      /\b(sandesh|message\s*list|alert\s*dikhao)\b/i,
     ],
   },
   {
@@ -244,7 +292,7 @@ export function classifyIntent(text, context = {}) {
     "hi": "greeting", "hello": "greeting", "hey": "greeting",
     "namaste": "greeting", "namaskar": "greeting",
     "help": "help", "madad": "help",
-    "register": "register", "register": "register",
+    "register": "register",
     "more": "more", "next": "more",
     "skip": "skip",
     "1": "option_1", "2": "option_2", "3": "option_3",
@@ -276,7 +324,6 @@ export function classifyIntent(text, context = {}) {
   // Context-based fallback: if user is in a known conversation step, infer intent
   if (context.currentStep) {
     const stepIntentMap = {
-      "waiting_for_price_product": "market_price",
       "waiting_for_lead_message": "lead_message",
       "waiting_for_exporter_response": "exporter_response",
       "waiting_for_product_image": "product_image",
@@ -289,10 +336,10 @@ export function classifyIntent(text, context = {}) {
     }
   }
 
-  // If user mentioned a commodity, likely a price query
+  // If user mentioned a commodity, likely a product search
   const commodity = extractCommodity(normalized);
   if (commodity) {
-    return { intent: "market_price", confidence: 0.5, method: "commodity_hint" };
+    return { intent: "product_search", confidence: 0.5, method: "commodity_hint" };
   }
 
   // Default: unknown (will fall through to Groq AI)
@@ -307,7 +354,6 @@ export function getIntentLabel(intent) {
     greeting: "Greeting",
     help: "Help",
     register: "Registration",
-    market_price: "Market Price",
     farmer_search: "Farmer Search",
     exporter_search: "Exporter Search",
     buyer_search: "Buyer Search",
@@ -320,17 +366,24 @@ export function getIntentLabel(intent) {
     product_pause: "Product Pause",
     product_resume: "Product Resume",
     mark_sold: "Mark Sold",
-    demand_intelligence: "Export/Demand Intelligence",
-    weather: "Weather",
-    crop_recommendation: "Crop Recommendation",
-    government_scheme: "Government Schemes",
-    logistics: "Logistics",
-    payment: "Payment",
-    quality: "Quality Standards",
-    packaging: "Packaging",
-    trend: "Trend Analysis",
-    complaint: "Complaint",
-    feedback: "Feedback",
+    send_proposal: "Send Proposal",
+    view_proposals: "View Proposals",
+    accept_proposal: "Accept Proposal",
+    reject_proposal: "Reject Proposal",
+    counter_offer: "Counter Offer",
+    request_info: "Request Info",
+    create_requirement: "Create Requirement",
+    view_requirements: "View Requirements",
+    view_deals: "View Deals",
+    update_deal: "Update Deal",
+    deal_timeline: "Deal Timeline",
+    rate_deal: "Rate Deal",
+    view_ratings: "View Ratings",
+    trade_score: "Trade Score",
+    view_matches: "View Matches",
+    select_match: "Select Match",
+    packaging_guide: "Packaging Guide",
+    notifications: "Notifications",
     goodbye: "Goodbye",
     lead_message: "Lead Message",
     exporter_response: "Exporter Response",

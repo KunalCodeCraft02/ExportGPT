@@ -102,28 +102,26 @@ export function getHelpMessage() {
     "🌾 *ExportConnect Help*\n\n" +
     "👤 *Registration*\n" +
     "• *REGISTER* — start or resume your profile\n" +
-    "• Register as *Farmer*, *Exporter*, or *Buyer*\n\n" +
-    "🧑‍🌾 *For Farmers / Sellers*\n" +
+    "• Register as *Farmer/Seller*, *Exporter*, or *Buyer*\n\n" +
+    "🧑‍🌾 *For Sellers*\n" +
     "• *ADD PRODUCT* — list a product for sale\n" +
-    "• *SHOW PRODUCTS* — browse the marketplace\n" +
-    "• *SHOW grass cutter* — search products by name\n" +
-    "• *EXPORTERS* — find exporters\n" +
-    "• *FIND EXPORTERS onion* — find exporters for a product\n" +
-    "• *BUYERS* — find buyers for your products\n" +
-    "• *PRICE onion* — check today's mandi price\n" +
-    "• *PACKAGING* — get packaging guidance\n" +
-    "• *ESCROW* — learn about payment protection\n\n" +
-    "🏢 *For Exporters / Buyers*\n" +
-    "• *FIND FARMERS* — find farmers for your products\n" +
-    "• *FIND FARMERS onion* — find onion farmers specifically\n" +
-    "• *DEMAND onion* — see which countries buy onion & at what price\n\n" +
-    "🤖 *AI Assistant*\n" +
-    "• *CAN I EXPORT mangoes to Dubai* — get export guidance\n" +
-    "• *EXPORT GUIDE* — ask any export question\n\n" +
-    "📊 *Market Intelligence*\n" +
-    "• *PRICE <product>* — daily mandi price\n" +
-    "• *TREND <product>* — export trend analysis\n" +
-    "• *DEMAND <product>* — global demand by country\n\n" +
+    "• *MY PRODUCTS* — view your listed products\n" +
+    "• *MATCHES* — find AI-matched buyers/exporters\n" +
+    "• *SEND PROPOSAL* — send a proposal to a buyer\n\n" +
+    "🛒 *For Buyers / Exporters*\n" +
+    "• *POST REQUIREMENT* — tell sellers what you need\n" +
+    "• *SHOW PRODUCTS* — browse available products\n" +
+    "• *FIND FARMERS* — find farmers for your products\n\n" +
+    "📋 *Proposals & Deals*\n" +
+    "• *PROPOSALS* — view incoming/outgoing proposals\n" +
+    "• *DEALS* — track your active deals\n" +
+    "• *RATE DEAL* — rate a completed deal\n\n" +
+    "📊 *Your Profile*\n" +
+    "• *SCORE* — view your trade score\n" +
+    "• *RATINGS* — view your ratings\n" +
+    "• *NOTIFICATIONS* — view notifications\n\n" +
+    "📦 *Export Help*\n" +
+    "• *PACKAGING* — get packaging guidance\n\n" +
     "📄 *General*\n" +
     "• *MORE* — show next page of results\n" +
     "• *HELP* — show this menu"
@@ -435,7 +433,7 @@ function getAlreadyRegisteredMessage(role) {
   if (role === ROLES.EXPORTER) {
     return (
       "✅ Your Exporter registration is already complete.\n\n" +
-      "Try:\n• *FIND FARMERS* — find farmers\n• *DEMAND onion* — check demand by country\n• *HELP* — see all commands"
+      "Try:\n• *FIND FARMERS* — find farmers\n• *SHOW PRODUCTS* — browse marketplace\n• *HELP* — see all commands"
     );
   }
   if (role === ROLES.BUYER) {
@@ -446,7 +444,7 @@ function getAlreadyRegisteredMessage(role) {
   }
   return (
     "✅ Your Farmer / Seller registration is already complete.\n\n" +
-    "Try:\n• *EXPORTERS* — find exporters\n• *BUYERS* — find buyers\n• *PRICE onion* — check mandi price\n• *HELP* — see all commands"
+    "Try:\n• *EXPORTERS* — find exporters\n• *BUYERS* — find buyers\n• *ADD PRODUCT* — list a product\n• *HELP* — see all commands"
   );
 }
 
@@ -512,7 +510,7 @@ async function saveCompletedRegistration(phone, role, tempData) {
     return (
       "✅ *Exporter registration submitted!*\n\n" +
       "🔍 Your profile is pending admin verification. You'll be notified once approved.\n\n" +
-      "Try:\n• *FIND FARMERS* — find farmers\n• *DEMAND onion* — check country demand\n• *HELP* — see all commands"
+      "Try:\n• *FIND FARMERS* — find farmers\n• *SHOW PRODUCTS* — browse marketplace\n• *HELP* — see all commands"
     );
   }
 
@@ -542,7 +540,7 @@ async function saveCompletedRegistration(phone, role, tempData) {
   return (
     "✅ *Farmer / Seller registration submitted!*\n\n" +
     "🔍 Your profile is pending admin verification. You'll be notified once approved.\n\n" +
-    "Try:\n• *EXPORTERS* — find exporters\n• *BUYERS* — find buyers\n• *PRICE onion* — check mandi price\n• *HELP* — see all commands"
+    "Try:\n• *EXPORTERS* — find exporters\n• *BUYERS* — find buyers\n• *ADD PRODUCT* — list a product\n• *HELP* — see all commands"
   );
 }
 

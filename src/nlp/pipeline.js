@@ -62,13 +62,6 @@ export function analyzeMessage(text, context = {}, recentLanguages = []) {
 function resolveContext(intentResult, entities, context) {
   const resolvedEntities = { ...entities };
 
-  // If intent is market_price but no commodity detected, use context
-  if (intentResult.intent === "market_price" && !resolvedEntities.commodity) {
-    if (context.lastCommodity) {
-      resolvedEntities.commodity = context.lastCommodity;
-    }
-  }
-
   // If intent is search but no product detected, use context
   if (["farmer_search", "exporter_search", "buyer_search"].includes(intentResult.intent)) {
     if (!resolvedEntities.commodity && context.lastCommodity) {

@@ -1,0 +1,30 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Requirements</h1>
+  <div class="mb-3">
+    <a href="/admin/requirements?status=all" class="btn btn-sm <%= status === 'all' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+    <% statuses.filter(s => s !== 'all').forEach(function(s) { %>
+      <a href="/admin/requirements?status=<%= s %>" class="btn btn-sm <%= status === s ? 'btn-primary' : 'btn-outline-primary' %>"><%= s %></a>
+    <% }); %>
+  </div>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>Date</th><th>Commodity</th><th>Quantity</th><th>Price</th><th>Location</th><th>Status</th></tr></thead>
+    <tbody>
+      <% requirements.forEach(function(r) { %>
+        <tr>
+          <td><%= new Date(r.createdAt).toLocaleDateString('en-IN') %></td>
+          <td><%= r.commodity %></td>
+          <td><%= r.quantity || '—' %></td>
+          <td><%= r.expectedPrice || '—' %></td>
+          <td><%= r.deliveryLocation || '—' %></td>
+          <td><span class="badge bg-<%= r.status === 'active' ? 'success' : 'secondary' %>"><%= r.status %></span></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/requirements?status=<%= status %>&page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

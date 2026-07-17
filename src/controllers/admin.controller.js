@@ -16,6 +16,13 @@ import {
   deleteProduct as deleteProductService,
   getProductStats,
 } from "../services/product.service.js";
+import Proposal from "../models/Proposal.js";
+import Deal from "../models/Deal.js";
+import Requirement from "../models/Requirement.js";
+import Rating from "../models/Rating.js";
+import TradeScore from "../models/TradeScore.js";
+import PackagingGuide from "../models/PackagingGuide.js";
+import Notification from "../models/Notification.js";
 import logger from "../utils/logger.js";
 
 export async function showLoginPage(req, res) {
@@ -242,4 +249,134 @@ function normalizeLeadStatus(status) {
 function normalizeProductStatus(status) {
   const normalized = String(status || "pending").trim().toLowerCase();
   return ["all", "pending", "approved", "rejected", "paused", "sold"].includes(normalized) ? normalized : "pending";
+}
+
+// ─── New Admin Handlers ─────────────────────────────────────────────────────
+
+export async function showProposals(req, res) {
+  const status = String(req.query.status || "all").trim();
+  const page = Number(req.query.page) || 1;
+  const query = status === "all" ? {} : { status };
+  const PAGE_SIZE = 20;
+
+  const [proposals, total] = await Promise.all([
+    Proposal.find(query).sort({ createdAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Proposal.countDocuments(query),
+  ]);
+
+  return res.render("admin/proposals", {
+    title: "Proposals",
+    status,
+    page,
+    proposals,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+    statuses: ["all", "submitted", "accepted", "rejected", "counter_offer", "info_requested"],
+  });
+}
+
+export async function showDeals(req, res) {
+  const status = String(req.query.status || "all").trim();
+  const page = Number(req.query.page) || 1;
+  const query = status === "all" ? {} : { status };
+  const PAGE_SIZE = 20;
+
+  const [deals, total] = await Promise.all([
+    Deal.find(query).sort({ updatedAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Deal.countDocuments(query),
+  ]);
+
+  return res.render("admin/deals", {
+    title: "Deals",
+    status,
+    page,
+    deals,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+    statuses: ["all", "accepted", "negotiation", "order_confirmed", "in_transit", "delivered", "completed", "cancelled"],
+  });
+}
+
+export async function showRequirements(req, res) {
+  const status = String(req.query.status || "all").trim();
+  const page = Number(req.query.page) || 1;
+  const query = status === "all" ? {} : { status };
+  const PAGE_SIZE = 20;
+
+  const [requirements, total] = await Promise.all([
+    Requirement.find(query).sort({ createdAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Requirement.countDocuments(query),
+  ]);
+
+  return res.render("admin/requirements", {
+    title: "Requirements",
+    status,
+    page,
+    requirements,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+    statuses: ["all", "active", "fulfilled", "expired", "cancelled"],
+  });
+}
+
+export async function showRatings(req, res) {
+  const page = Number(req.query.page) || 1;
+  const PAGE_SIZE = 20;
+
+  const [ratings, total] = await Promise.all([
+    Rating.find().sort({ createdAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Rating.countDocuments(),
+  ]);
+
+  return res.render("admin/ratings", {
+    title: "Ratings",
+    page,
+    ratings,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+  });
+}
+
+export async function showTradeScores(req, res) {
+  const page = Number(req.query.page) || 1;
+  const PAGE_SIZE = 20;
+
+  const [scores, total] = await Promise.all([
+    TradeScore.find().sort({ tradeScore: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    TradeScore.countDocuments(),
+  ]);
+
+  return res.render("admin/trade-scores", {
+    title: "Trade Scores",
+    page,
+    scores,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+  });
+}
+
+export async function showPackagingGuides(req, res) {
+  const guides = await PackagingGuide.find().sort({ commodity: 1 }).lean();
+  return res.render("admin/packaging-guides", {
+    title: "Packaging Guides",
+    guides,
+  });
+}
+
+export async function showNotifications(req, res) {
+  const page = Number(req.query.page) || 1;
+  const PAGE_SIZE = 20;
+
+  const [notifications, total] = await Promise.all([
+    Notification.find().sort({ createdAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Notification.countDocuments(),
+  ]);
+
+  return res.render("admin/notifications", {
+    title: "Notifications",
+    page,
+    notifications,
+    total,
+    hasNextPage: page * PAGE_SIZE < total,
+  });
 }

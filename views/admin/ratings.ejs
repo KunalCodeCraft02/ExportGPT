@@ -1,0 +1,23 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Ratings</h1>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>Date</th><th>Stars</th><th>Review</th><th>Rater</th><th>Ratee</th></tr></thead>
+    <tbody>
+      <% ratings.forEach(function(r) { %>
+        <tr>
+          <td><%= new Date(r.createdAt).toLocaleDateString('en-IN') %></td>
+          <td><%= '★'.repeat(r.stars) %><%= '☆'.repeat(5 - r.stars) %></td>
+          <td><%= r.review || '—' %></td>
+          <td><%= r.raterType %></td>
+          <td><%= r.rateeType %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/ratings?page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

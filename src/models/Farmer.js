@@ -5,6 +5,8 @@ const farmerSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true, index: true },
     email: { type: String, trim: true, lowercase: true },
+    businessName: { type: String, trim: true },
+    gstin: { type: String, trim: true, uppercase: true },
     village: { type: String, trim: true },
     district: { type: String, trim: true, index: true },
     state: { type: String, required: true, trim: true, index: true },
@@ -19,6 +21,13 @@ const farmerSchema = new mongoose.Schema(
     expectedPrice: { type: String, trim: true },
     harvestDate: { type: String, trim: true },
     packagingType: { type: String, trim: true },
+    tradeScoreId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TradeScore",
+      default: null,
+    },
+    overallRating: { type: Number, default: 0, min: 0, max: 5 },
+    totalDeals: { type: Number, default: 0 },
     verified: { type: Boolean, default: false },
     verificationStatus: {
       type: String,

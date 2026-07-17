@@ -1,0 +1,19 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Packaging Guides</h1>
+  <table class="table table-striped">
+    <thead><tr><th>Commodity</th><th>Packaging</th><th>Bag Type</th><th>Weight</th><th>Documents</th></tr></thead>
+    <tbody>
+      <% guides.forEach(function(g) { %>
+        <tr>
+          <td><strong><%= g.commodity.charAt(0).toUpperCase() + g.commodity.slice(1) %></strong></td>
+          <td><%= g.recommendedPackaging || '—' %></td>
+          <td><%= g.bagType || '—' %></td>
+          <td><%= g.weight || '—' %></td>
+          <td><%= (g.documentsNeeded || []).join(', ') || '—' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/admin-shell-end') %>

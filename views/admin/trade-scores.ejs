@@ -1,0 +1,25 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Trade Scores</h1>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>User</th><th>Score</th><th>Trust Level</th><th>Orders</th><th>Rating</th><th>GST</th><th>IEC</th></tr></thead>
+    <tbody>
+      <% scores.forEach(function(s) { %>
+        <tr>
+          <td><%= s.userType %> (<%= s.userId %>)</td>
+          <td><strong><%= s.tradeScore %>/100</strong></td>
+          <td><span class="badge bg-<%= s.trustLevel === 'platinum' ? 'dark' : s.trustLevel === 'gold' ? 'warning' : s.trustLevel === 'silver' ? 'secondary' : 'info' %>"><%= s.trustLevel %></span></td>
+          <td><%= s.successfulOrders %></td>
+          <td><%= s.averageRating %>/5 (<%= s.totalRatings %>)</td>
+          <td><%= s.gstVerified ? '✅' : '❌' %></td>
+          <td><%= s.iecVerified ? '✅' : '❌' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/trade-scores?page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

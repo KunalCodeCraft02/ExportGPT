@@ -39,11 +39,6 @@ import {
   storeMarketplacePage,
 } from "../services/matching.service.js";
 import {
-  extractCommodityFromText,
-  fetchCommodityPrice,
-  formatPriceResults,
-} from "../services/marketPrice.service.js";
-import {
   startProductRegistration,
   handleProductRegistrationInput,
   handleProductImageStep,
@@ -259,8 +254,52 @@ async function routeMessage(phone, text) {
     return handleExporterResponse(phone, text, state);
   }
 
-  if (currentStep === STEPS.WAITING_FOR_PRICE_PRODUCT) {
-    return handlePriceProductReply(phone, text, state);
+  if (currentStep === STEPS.WAITING_FOR_MATCH_SELECTION) {
+    return handleMatchSelectionStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_PROPOSAL_MESSAGE) {
+    return handleProposalMessageStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_COUNTER_OFFER) {
+    return handleCounterOfferStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_INFO_REQUEST) {
+    return handleInfoRequestStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_COMMODITY) {
+    return handleRequirementCommodityStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_QUANTITY) {
+    return handleRequirementQuantityStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_PRICE) {
+    return handleRequirementPriceStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_DATE) {
+    return handleRequirementDateStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_LOCATION) {
+    return handleRequirementLocationStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_REQUIREMENT_NOTES) {
+    return handleRequirementNotesStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_RATING_STARS) {
+    return handleRatingStarsStep(phone, text, state);
+  }
+
+  if (currentStep === STEPS.WAITING_FOR_RATING_REVIEW) {
+    return handleRatingReviewStep(phone, text, state);
   }
 
   if (currentStep === STEPS.WAITING_FOR_PRODUCT_IMAGE) {
@@ -317,9 +356,6 @@ async function routeMessage(phone, text) {
     case "greeting":
       return handleGreetingIntent(phone, role, language, state);
 
-    case "market_price":
-      return handlePriceIntent(phone, text, entities, language, state);
-
     case "farmer_search":
       return handleFarmerSearchIntent(phone, text, entities, state);
 
@@ -356,27 +392,62 @@ async function routeMessage(phone, text) {
     case "mark_sold":
       return handleMarkSoldIntent(phone, text, state);
 
-    case "demand_intelligence":
-      return handleDemandIntent(phone, text, entities, language, state);
+    case "send_proposal":
+      return handleSendProposalIntent(phone, text, state);
+
+    case "view_proposals":
+      return handleViewProposalsIntent(phone, text, state);
+
+    case "accept_proposal":
+      return handleAcceptProposalIntent(phone, text, state);
+
+    case "reject_proposal":
+      return handleRejectProposalIntent(phone, text, state);
+
+    case "counter_offer":
+      return handleCounterOfferIntent(phone, text, state);
+
+    case "request_info":
+      return handleRequestInfoIntent(phone, text, state);
+
+    case "create_requirement":
+      return handleCreateRequirementIntent(phone, text, state);
+
+    case "view_requirements":
+      return handleViewRequirementsIntent(phone, text, state);
+
+    case "view_deals":
+      return handleViewDealsIntent(phone, text, state);
+
+    case "update_deal":
+      return handleUpdateDealIntent(phone, text, state);
+
+    case "deal_timeline":
+      return handleDealTimelineIntent(phone, text, state);
+
+    case "rate_deal":
+      return handleRateDealIntent(phone, text, state);
+
+    case "view_ratings":
+      return handleViewRatingsIntent(phone, text, state);
+
+    case "trade_score":
+      return handleTradeScoreIntent(phone, text, state);
+
+    case "view_matches":
+      return handleViewMatchesIntent(phone, text, state);
+
+    case "select_match":
+      return handleSelectMatchIntent(phone, text, state);
+
+    case "packaging_guide":
+      return handlePackagingGuideIntent(phone, text, state);
+
+    case "notifications":
+      return handleNotificationsIntent(phone, text, state);
 
     case "register":
       return handleRegisterIntent(phone, role, state);
-
-    case "trend":
-      return handleTrendIntent(phone, text, entities, language, state);
-
-    case "weather":
-    case "crop_recommendation":
-    case "government_scheme":
-    case "logistics":
-    case "payment":
-    case "quality":
-    case "packaging":
-      return handleAIIntent(phone, text, intent, language, state);
-
-    case "complaint":
-    case "feedback":
-      return handleAIIntent(phone, text, intent, language, state);
 
     case "goodbye":
       return handleGoodbyeIntent(phone, language, state);
@@ -411,9 +482,6 @@ async function routeMessage(phone, text) {
   }
   if (normalized.startsWith("VIEW ")) {
     return handleViewProduct(phone, text, state);
-  }
-  if (/^(PRICE|PRICES?|RATE|RATES?|MANDI|MARKET\s*PRICE|DAILY\s*PRICE|CHECK\s*PRICE|MANDI\s*PRICE|MANDI\s*RATE)/.test(normalized)) {
-    return handlePriceCommand(phone, text, state);
   }
   if (/^(FARMERS?|FIND\s*FARMER)/.test(normalized)) {
     return handleFarmerSearch(phone, text, state);
@@ -652,74 +720,6 @@ async function notifyExporterOfLead(lead, farmer, exporter, product) {
   });
 
   return sendLocalizedMessage(exporter.phone, message);
-}
-
-// ─── Daily market price handlers ──────────────────────────────────────────────
-async function handlePriceCommand(phone, text, state) {
-  const commodity = extractCommodityFromText(text);
-
-  if (!commodity) {
-    // No product typed yet — ask for it
-    await updateState(phone, {
-      role: state.role,
-      currentStep: STEPS.WAITING_FOR_PRICE_PRODUCT,
-      tempData: state.tempData || {},
-    });
-    return sendLocalizedMessage(
-      phone,
-      "🌾 Which product's price would you like to check?\n\n" +
-        "Examples: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*"
-    );
-  }
-
-  return sendPriceForCommodity(phone, commodity, state);
-}
-
-async function handlePriceProductReply(phone, text, state) {
-  const commodity = String(text || "").trim();
-  if (!commodity) {
-    return sendLocalizedMessage(
-      phone,
-      "Please type a product name, e.g. *onion* or *soyabean*."
-    );
-  }
-  return sendPriceForCommodity(phone, commodity, state);
-}
-
-async function sendPriceForCommodity(phone, rawCommodity, state) {
-  // Try state-specific prices first (more relevant for the user)
-  const farmer = await Farmer.findOne({ phone }).select("state").lean();
-
-  let { records, commodity, error, fromCache } = await fetchCommodityPrice(rawCommodity, {
-    state: farmer?.state,
-  });
-
-  // Fall back to national data if nothing found for user's state
-  if (!error && (!records || records.length === 0) && farmer?.state) {
-    ({ records, commodity, error, fromCache } = await fetchCommodityPrice(rawCommodity));
-  }
-
-  // Reset step back to READY
-  await updateState(phone, {
-    role: state.role,
-    currentStep: STEPS.READY,
-    tempData: state.tempData || {},
-  });
-
-  if (error === "config") {
-    return sendLocalizedMessage(
-      phone,
-      "⚠️ Market price lookup is not configured yet. Please contact support."
-    );
-  }
-  if (error) {
-    return sendLocalizedMessage(
-      phone,
-      "⚠️ Could not fetch market prices right now. Please try again shortly."
-    );
-  }
-
-  return sendLocalizedMessage(phone, formatPriceResults(commodity, records, fromCache));
 }
 
 // ─── Search handlers ──────────────────────────────────────────────────────────
@@ -1007,29 +1007,6 @@ async function handleGreetingIntent(phone, role, language, state) {
   return sendLocalizedMessage(phone, reply);
 }
 
-async function handlePriceIntent(phone, text, entities, language, state) {
-  // Use NLP-extracted commodity, or fall back to text extraction
-  const commodity = entities.commodity || extractCommodityFromText(text);
-  if (!commodity) {
-    // Ask which product
-    await updateState(phone, {
-      role: state.role,
-      currentStep: STEPS.WAITING_FOR_PRICE_PRODUCT,
-      tempData: state.tempData || {},
-    });
-    const askMsg = {
-      english: "🌾 Which product's price would you like to check?\n\nExamples: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
-      hindi: "🌾 आप किस प्रोडक्ट का भाव जानना चाहेंगे?\n\nउदाहरण: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
-      hinglish: "🌾 Aap kis product ka price jaanna chahte hain?\n\nExamples: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
-      marathi: "🌾 तुम्हाला कोणत्या उत्पादनाचा भाव जाणून घ्यायचा आहे?\n\nउदाहरणे: *onion*, *soyabean*, *wheat*, *tomato*, *potato*, *turmeric*",
-    };
-    const reply = askMsg[language] || askMsg.english;
-    await saveAssistantMessage(phone, reply);
-    return sendLocalizedMessage(phone, reply);
-  }
-  return sendPriceForCommodity(phone, commodity, state);
-}
-
 async function handleFarmerSearchIntent(phone, text, entities, state) {
   const product = entities.commodity || extractProduct(text);
   const result = await searchFarmers({ product, page: 1 });
@@ -1105,32 +1082,6 @@ async function handleProductCreateIntent(phone, text, state) {
   return sendLocalizedMessage(phone, reply);
 }
 
-async function handleDemandIntent(phone, text, entities, language, state) {
-  // Route to the demand intelligence module
-  const { getProductDemandData, formatDemandIntelligence, getExportAssistantReply } = await import("../services/demandintelligence.service.js");
-  const commodity = entities.commodity || extractCommodityFromText(text);
-
-  // Check if it's an export question (e.g., "Can I export mango to Dubai")
-  if (text.toLowerCase().includes("can i export") || text.toLowerCase().includes("export guide") || text.toLowerCase().includes("export document")) {
-    const reply = await getExportAssistantReply(text);
-    await saveAssistantMessage(phone, reply);
-    return sendLocalizedMessage(phone, reply);
-  }
-
-  // Check if it's a demand query
-  if (commodity) {
-    const data = getProductDemandData(commodity);
-    const reply = formatDemandIntelligence(commodity, data);
-    await saveAssistantMessage(phone, reply);
-    return sendLocalizedMessage(phone, reply);
-  }
-
-  // General export question — use AI
-  const reply = await getExportAssistantReply(text);
-  await saveAssistantMessage(phone, reply);
-  return sendLocalizedMessage(phone, reply);
-}
-
 async function handleRegisterIntent(phone, role, state) {
   if (role) {
     const existingProfile = await findExistingProfile(phone);
@@ -1153,26 +1104,6 @@ async function handleRegisterIntent(phone, role, state) {
   return sendLocalizedMessage(phone, getWelcomeMessage());
 }
 
-async function handleTrendIntent(phone, text, entities, language, state) {
-  const { getExportTrendAnalysis } = await import("../services/demandintelligence.service.js");
-  const commodity = entities.commodity || extractCommodityFromText(text);
-  const product = commodity || "agricultural products";
-  const reply = await getExportTrendAnalysis(product);
-  await saveAssistantMessage(phone, reply);
-  return sendLocalizedMessage(phone, reply);
-}
-
-async function handleAIIntent(phone, text, intent, language, state) {
-  // Use Groq with context for specific topic intents
-  const history = await getConversationHistory(phone, 10);
-  const reply = await askGroqWithContext(text, {
-    history,
-    language,
-  });
-  await saveAssistantMessage(phone, reply);
-  return sendLocalizedMessage(phone, reply);
-}
-
 async function handleGoodbyeIntent(phone, language, state) {
   const goodbyes = {
     english: "Goodbye! 👋 Thank you for using ExportConnect. Have a great day! Type *HELP* anytime to come back.",
@@ -1183,6 +1114,273 @@ async function handleGoodbyeIntent(phone, language, state) {
   const reply = goodbyes[language] || goodbyes.english;
   await saveAssistantMessage(phone, reply);
   return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Step-based Conversation Handlers ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleMatchSelectionStep(phone, text, state) {
+  const match = text.match(/(\d+)/);
+  if (!match) {
+    const reply = "Please reply with a number to select.";
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const proposalProducts = state.tempData?.proposalProducts;
+  if (proposalProducts) {
+    const { findMatchesForProduct, formatMatchResults } = await import("../services/matching.service.js");
+    const productIndex = parseInt(match[1]) - 1;
+    const productId = proposalProducts[productIndex];
+
+    if (!productId) {
+      const reply = "❌ Product not found.";
+      return sendLocalizedMessage(phone, reply);
+    }
+
+    const product = await Product.findById(productId).lean();
+    const matches = await findMatchesForProduct(product);
+    const formatted = formatMatchResults(matches);
+
+    await updateState(phone, {
+      currentStep: STEPS.WAITING_FOR_MATCH_SELECTION,
+      tempData: {
+        ...(state.tempData || {}),
+        proposalProductId: productId,
+        matches: matches.map((m) => ({ id: m.match._id, type: m.type, name: m.match.companyName || m.match.name })),
+      },
+    });
+
+    return sendLocalizedMessage(phone, formatted);
+  }
+
+  const matches = state.tempData?.matches || [];
+  const matchIndex = parseInt(match[1]) - 1;
+  const selected = matches[matchIndex];
+
+  if (!selected) {
+    const reply = "❌ Match not found. Type *MATCHES* to see options.";
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_PROPOSAL_MESSAGE,
+    tempData: {
+      ...(state.tempData || {}),
+      selectedMatchId: selected.id,
+      selectedMatchType: selected.type,
+      selectedMatchName: selected.name,
+    },
+  });
+
+  const reply = `✉️ Type your proposal message for *${selected.name}*.\n\nInclude: quantity, quality, delivery availability.`;
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleProposalMessageStep(phone, text, state) {
+  const { createProposal } = await import("../services/proposal.service.js");
+
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const productId = state.tempData?.proposalProductId;
+  const receiverId = state.tempData?.selectedMatchId;
+  const receiverType = state.tempData?.selectedMatchType;
+
+  if (!productId || !receiverId) {
+    const reply = "❌ Something went wrong. Type *MATCHES* to start again.";
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  try {
+    await createProposal({
+      senderId: owner._id,
+      senderType: ownerType,
+      receiverId,
+      receiverType,
+      productId,
+      data: { message: text },
+    });
+
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    const reply = `✅ *Proposal sent!* 📋\n\nThe buyer/exporter will be notified.\n\nType *PROPOSALS* to track your proposals.`;
+    return sendLocalizedMessage(phone, reply);
+  } catch (err) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    const reply = `❌ ${err.message}`;
+    return sendLocalizedMessage(phone, reply);
+  }
+}
+
+async function handleCounterOfferStep(phone, text, state) {
+  const { respondToProposal, getProposalsForUser } = await import("../services/proposal.service.js");
+
+  const userId = state.tempData?.counterOfferUserId;
+  if (!userId) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ Session expired. Type *PROPOSALS* to start again.");
+  }
+
+  const result = await getProposalsForUser(userId, { direction: "received", status: "submitted" });
+  if (!result.proposals.length) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ No pending proposals to counter.");
+  }
+
+  const proposal = result.proposals[0];
+  const priceMatch = text.match(/₹?\s*(\d+(?:\.\d+)?)/);
+
+  try {
+    await respondToProposal(proposal._id, "counter_offer", {
+      userId,
+      counterPrice: priceMatch ? `₹${priceMatch[1]}` : text,
+      counterMessage: text,
+    });
+
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "💰 Counter offer sent!");
+  } catch (err) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `❌ ${err.message}`);
+  }
+}
+
+async function handleInfoRequestStep(phone, text, state) {
+  const { respondToProposal, getProposalsForUser } = await import("../services/proposal.service.js");
+
+  const userId = state.tempData?.infoRequestUserId;
+  if (!userId) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ Session expired. Type *PROPOSALS* to start again.");
+  }
+
+  const result = await getProposalsForUser(userId, { direction: "received", status: "submitted" });
+  if (!result.proposals.length) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ No pending proposals.");
+  }
+
+  const proposal = result.proposals[0];
+
+  try {
+    await respondToProposal(proposal._id, "info_request", {
+      userId,
+      infoRequestMessage: text,
+    });
+
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❓ Info request sent!");
+  } catch (err) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `❌ ${err.message}`);
+  }
+}
+
+async function handleRequirementCommodityStep(phone, text, state) {
+  const tempData = { ...(state.tempData || {}), requirementData: { ...(state.tempData?.requirementData || {}), commodity: text.trim() } };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_REQUIREMENT_QUANTITY, tempData });
+  return sendLocalizedMessage(phone, "📊 How much quantity do you need?\n\nExample: *10 tonnes*, *500 kg*");
+}
+
+async function handleRequirementQuantityStep(phone, text, state) {
+  const tempData = { ...(state.tempData || {}), requirementData: { ...(state.tempData?.requirementData || {}), quantity: text.trim() } };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_REQUIREMENT_PRICE, tempData });
+  return sendLocalizedMessage(phone, "💰 What's your expected price?\n\nExample: *₹15/kg* or *negotiable*");
+}
+
+async function handleRequirementPriceStep(phone, text, state) {
+  const tempData = { ...(state.tempData || {}), requirementData: { ...(state.tempData?.requirementData || {}), expectedPrice: text.trim() } };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_REQUIREMENT_DATE, tempData });
+  return sendLocalizedMessage(phone, "📅 When do you need delivery?\n\nExample: *August 2026*, *within 30 days*, *ASAP*");
+}
+
+async function handleRequirementDateStep(phone, text, state) {
+  const tempData = { ...(state.tempData || {}), requirementData: { ...(state.tempData?.requirementData || {}), requiredDate: text.trim() } };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_REQUIREMENT_LOCATION, tempData });
+  return sendLocalizedMessage(phone, "📍 Where should it be delivered?\n\nExample: *Mumbai*, *Delhi*, *Nashik*");
+}
+
+async function handleRequirementLocationStep(phone, text, state) {
+  const tempData = { ...(state.tempData || {}), requirementData: { ...(state.tempData?.requirementData || {}), deliveryLocation: text.trim() } };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_REQUIREMENT_NOTES, tempData });
+  return sendLocalizedMessage(phone, "📝 Any additional notes?\n\nType your notes or *SKIP* to finish.");
+}
+
+async function handleRequirementNotesStep(phone, text, state) {
+  const { createRequirement } = await import("../services/requirement.service.js");
+  const rd = state.tempData?.requirementData || {};
+
+  const ownerType = state.role === "buyer" ? "Buyer" : "Exporter";
+  const owner = await Buyer.findOne({ phone }).lean() || await Exporter.findOne({ phone }).lean();
+
+  if (!owner) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ Profile not found.");
+  }
+
+  try {
+    await createRequirement({
+      creatorId: owner._id,
+      creatorType: ownerType,
+      commodity: rd.commodity,
+      quantity: rd.quantity,
+      expectedPrice: rd.expectedPrice,
+      requiredDate: rd.requiredDate,
+      deliveryLocation: rd.deliveryLocation,
+      notes: text.toUpperCase() === "SKIP" ? "" : text,
+    });
+
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `✅ *Requirement posted!*\n\n📋 ${rd.commodity} — ${rd.quantity || "—"}\n\nSellers will be matched automatically.\n\nType *REQUIREMENTS* to view your requirements.`);
+  } catch (err) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `❌ ${err.message}`);
+  }
+}
+
+async function handleRatingStarsStep(phone, text, state) {
+  const starMatch = text.match(/([1-5])/);
+  const starCount = starMatch ? parseInt(starMatch[1]) : (text.match(/★/g) || []).length;
+
+  if (!starCount || starCount < 1 || starCount > 5) {
+    return sendLocalizedMessage(phone, "Please reply with 1-5 stars (e.g., *4* or *★★★★*).");
+  }
+
+  const tempData = { ...(state.tempData || {}), ratingStars: starCount };
+  await updateState(phone, { currentStep: STEPS.WAITING_FOR_RATING_REVIEW, tempData });
+  return sendLocalizedMessage(phone, `⭐ ${starCount} stars selected.\n\nWrite a review (or type *SKIP*).`);
+}
+
+async function handleRatingReviewStep(phone, text, state) {
+  const { submitRating } = await import("../services/rating.service.js");
+
+  const dealId = state.tempData?.ratingDealId;
+  const userId = state.tempData?.ratingUserId;
+  const userType = state.tempData?.ratingUserType;
+  const stars = state.tempData?.ratingStars;
+
+  if (!dealId || !userId) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, "❌ Session expired.");
+  }
+
+  try {
+    await submitRating(dealId, userId, userType, {
+      stars,
+      review: text.toUpperCase() === "SKIP" ? "" : text,
+    });
+
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `✅ *Rating submitted!*\n\n⭐ ${stars} stars\nThank you for your feedback!`);
+  } catch (err) {
+    await updateState(phone, { currentStep: STEPS.READY, tempData: {} });
+    return sendLocalizedMessage(phone, `❌ ${err.message}`);
+  }
 }
 
 async function handleAIFallback(phone, text, language, state, updatedTempData) {
@@ -1476,6 +1674,556 @@ async function handleMarkSoldIntent(phone, text, state) {
 
   await Product.findByIdAndUpdate(product._id, { status: "sold" });
   const reply = `💰 *${product.productName}* marked as sold. Congratulations on the sale!`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Proposal Handlers ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleSendProposalIntent(phone, text, state) {
+  if (!state.role) {
+    const reply = "⚠️ Please register first.\n\nType *REGISTER* to get started.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const { findMatchesForProduct, formatMatchResults } = await import("../services/matching.service.js");
+
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found. Please register first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id, status: "approved" }).sort({ createdAt: -1 }).lean();
+  if (!products.length) {
+    const reply = "📦 You have no approved products.\n\nType *ADD PRODUCT* to list one first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  if (products.length === 1) {
+    const matches = await findMatchesForProduct(products[0]);
+    const formatted = formatMatchResults(matches);
+
+    await updateState(phone, {
+      currentStep: STEPS.WAITING_FOR_MATCH_SELECTION,
+      tempData: {
+        ...(state.tempData || {}),
+        proposalProductId: products[0]._id.toString(),
+        matches: matches.map((m) => ({ id: m.match._id, type: m.type, name: m.match.companyName || m.match.name })),
+      },
+    });
+
+    await saveAssistantMessage(phone, formatted);
+    return sendLocalizedMessage(phone, formatted);
+  }
+
+  const productList = products.map((p, i) => `*${i + 1}. ${p.productName}* — ${p.quantity || "—"}`).join("\n");
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_MATCH_SELECTION,
+    tempData: { ...(state.tempData || {}), proposalProducts: products.map((p) => p._id.toString()) },
+  });
+
+  const reply = `📦 *Select Product to Send Proposal:*\n\n${productList}\n\nReply with product number.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleViewProposalsIntent(phone, text, state) {
+  const { getProposalsForUser, formatProposalCard } = await import("../services/proposal.service.js");
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const direction = text.toLowerCase().includes("sent") ? "sent" : text.toLowerCase().includes("received") ? "received" : "all";
+  const result = await getProposalsForUser(owner._id, { direction });
+
+  if (!result.proposals.length) {
+    const reply = "📋 No proposals found.\n\nType *SEND PROPOSAL* to send one.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const cards = result.proposals.map((p, i) => formatProposalCard(p, i + 1)).join("\n\n");
+  const reply = `📋 *Your Proposals* (${result.total})\n\n${cards}`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleAcceptProposalIntent(phone, text, state) {
+  const { respondToProposal } = await import("../services/proposal.service.js");
+  const { createDeal } = await import("../services/deal.service.js");
+
+  const match = text.match(/(?:accept|approve)\s*(?:proposal)?\s*(\d+)|(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which proposal.\n\nExample: *ACCEPT 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const { getProposalsForUser } = await import("../services/proposal.service.js");
+  const result = await getProposalsForUser(owner._id, { direction: "received" });
+  const proposalIndex = parseInt(match[1] || match[2]) - 1;
+  const proposal = result.proposals[proposalIndex];
+
+  if (!proposal) {
+    const reply = "❌ Proposal not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await respondToProposal(proposal._id, "accept", { userId: owner._id });
+  await createDeal(proposal._id);
+
+  const reply = `✅ Proposal accepted! Deal created.\n\nType *DEALS* to track your deal.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleRejectProposalIntent(phone, text, state) {
+  const { respondToProposal, getProposalsForUser } = await import("../services/proposal.service.js");
+
+  const match = text.match(/(?:reject|decline)\s*(?:proposal)?\s*(\d+)|(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which proposal.\n\nExample: *REJECT 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getProposalsForUser(owner._id, { direction: "received" });
+  const proposalIndex = parseInt(match[1] || match[2]) - 1;
+  const proposal = result.proposals[proposalIndex];
+
+  if (!proposal) {
+    const reply = "❌ Proposal not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await respondToProposal(proposal._id, "reject", { userId: owner._id });
+
+  const reply = "❌ Proposal rejected.";
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleCounterOfferIntent(phone, text, state) {
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_COUNTER_OFFER,
+    tempData: { ...(state.tempData || {}), counterOfferUserId: owner._id.toString(), counterOfferUserType: ownerType },
+  });
+
+  const reply = "💰 Type your counter offer price and message.\n\nExample: *₹18/kg, can you do this price?*";
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleRequestInfoIntent(phone, text, state) {
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_INFO_REQUEST,
+    tempData: { ...(state.tempData || {}), infoRequestUserId: owner._id.toString() },
+  });
+
+  const reply = "❓ What information do you need?\n\nType your question.";
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Requirement Handlers ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleCreateRequirementIntent(phone, text, state) {
+  if (!state.role || (state.role !== "buyer" && state.role !== "exporter")) {
+    const reply = "⚠️ Only Buyers and Exporters can post requirements.\n\nType *REGISTER* to sign up as a Buyer or Exporter.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_REQUIREMENT_COMMODITY,
+    tempData: { ...(state.tempData || {}), requirementData: {} },
+  });
+
+  const reply = "📋 *Post Requirement*\n\nWhat product do you need?\n\nExample: *Onion*, *Rice*, *Turmeric*";
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleViewRequirementsIntent(phone, text, state) {
+  const { getRequirementsForUser, formatRequirementResults } = await import("../services/requirement.service.js");
+  const ownerType = state.role === "buyer" ? "Buyer" : "Exporter";
+  const owner = await Buyer.findOne({ phone }).lean() || await Exporter.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getRequirementsForUser(owner._id, {});
+  const formatted = formatRequirementResults(result);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Deal Handlers ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleViewDealsIntent(phone, text, state) {
+  const { getDealsForUser, formatDealCard } = await import("../services/deal.service.js");
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getDealsForUser(owner._id, {});
+
+  if (!result.deals.length) {
+    const reply = "📋 No active deals.\n\nDeals are created when proposals are accepted.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const cards = result.deals.map((d, i) => formatDealCard(d, i + 1)).join("\n\n");
+  const reply = `📋 *Your Deals* (${result.total})\n\n${cards}\n\nReply *DEAL <number>* for timeline.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleUpdateDealIntent(phone, text, state) {
+  const { getDealsForUser, updateDealStatus } = await import("../services/deal.service.js");
+
+  const match = text.match(/(?:update|change|mark)\s*(?:deal)?\s*(\d+)|deal\s*(\d+)/i);
+  if (!match) {
+    const reply = "Please specify which deal and status.\n\nExample: *UPDATE DEAL 1 delivered*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getDealsForUser(owner._id, {});
+  const dealIndex = parseInt(match[1] || match[2]) - 1;
+  const deal = result.deals[dealIndex];
+
+  if (!deal) {
+    const reply = "❌ Deal not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const statusMatch = text.match(/\b(delivered|completed|cancelled|packaging|in_transit|pickup_scheduled)\b/i);
+  if (!statusMatch) {
+    const reply = "What status? Options: *packaging*, *pickup_scheduled*, *in_transit*, *delivered*, *completed*, *cancelled*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  try {
+    await updateDealStatus(deal._id, statusMatch[1].toLowerCase(), owner._id);
+    const reply = `✅ Deal #${deal._id.toString().slice(-6).toUpperCase()} updated to *${statusMatch[1]}*.`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  } catch (err) {
+    const reply = `❌ ${err.message}`;
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+}
+
+async function handleDealTimelineIntent(phone, text, state) {
+  const { getDealsForUser, getDealById, formatDealDetail } = await import("../services/deal.service.js");
+
+  const match = text.match(/(\d+)/);
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getDealsForUser(owner._id, {});
+  const dealIndex = match ? parseInt(match[1]) - 1 : 0;
+  const deal = result.deals[dealIndex];
+
+  if (!deal) {
+    const reply = "❌ Deal not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const fullDeal = await getDealById(deal._id);
+  const formatted = formatDealDetail(fullDeal);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Rating Handlers ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleRateDealIntent(phone, text, state) {
+  const { getDealsForUser, canRate } = await import("../services/rating.service.js");
+
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const { getDealsForUser: getDeals } = await import("../services/deal.service.js");
+  const result = await getDeals(owner._id, { status: "completed" });
+
+  if (!result.deals.length) {
+    const reply = "⭐ No completed deals to rate yet.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(\d+)/);
+  const dealIndex = match ? parseInt(match[1]) - 1 : 0;
+  const deal = result.deals[dealIndex];
+
+  if (!deal) {
+    const reply = "❌ Deal not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const canRateDeal = await canRate(deal._id, owner._id);
+  if (!canRateDeal) {
+    const reply = "⭐ You have already rated this deal.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_RATING_STARS,
+    tempData: { ...(state.tempData || {}), ratingDealId: deal._id.toString(), ratingUserId: owner._id.toString(), ratingUserType: ownerType },
+  });
+
+  const reply = `⭐ Rate your experience with this deal.\n\nReply with 1-5 stars (e.g., *4* or *★★★★*).`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+async function handleViewRatingsIntent(phone, text, state) {
+  const { getRatingsForUser, formatRatingCard } = await import("../services/rating.service.js");
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getRatingsForUser(owner._id, {});
+  if (!result.ratings.length) {
+    const reply = "⭐ No ratings yet.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const cards = result.ratings.map((r, i) => formatRatingCard(r, i + 1)).join("\n\n");
+  const reply = `⭐ *Your Ratings* (${result.total})\n\n${cards}`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Trade Score Handler ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleTradeScoreIntent(phone, text, state) {
+  const { calculateTradeScore, formatTradeScore } = await import("../services/tradeScore.service.js");
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const ts = await calculateTradeScore(owner._id, ownerType);
+  const formatted = formatTradeScore(ts);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Match Handlers ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleViewMatchesIntent(phone, text, state) {
+  const { findMatchesForProduct, formatMatchResults } = await import("../services/matching.service.js");
+
+  const ownerType = state.role === "farmer" ? "Farmer" : "Exporter";
+  const owner = await getOwnerForProduct(phone, ownerType);
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const products = await Product.find({ ownerId: owner._id, status: "approved" }).sort({ createdAt: -1 }).lean();
+  if (!products.length) {
+    const reply = "📦 No approved products to match.\n\nType *ADD PRODUCT* first.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const match = text.match(/(\d+)/);
+  const productIndex = match ? parseInt(match[1]) - 1 : 0;
+  const product = products[productIndex];
+
+  if (!product) {
+    const reply = "❌ Product not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const matches = await findMatchesForProduct(product);
+  const formatted = formatMatchResults(matches);
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_MATCH_SELECTION,
+    tempData: {
+      ...(state.tempData || {}),
+      proposalProductId: product._id.toString(),
+      matches: matches.map((m) => ({ id: m.match._id, type: m.type, name: m.match.companyName || m.match.name })),
+    },
+  });
+
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleSelectMatchIntent(phone, text, state) {
+  const match = text.match(/(\d+)/);
+  if (!match) {
+    const reply = "Please specify which match.\n\nExample: *SELECT 1*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const matches = state.tempData?.matches || [];
+  const matchIndex = parseInt(match[1]) - 1;
+  const selected = matches[matchIndex];
+
+  if (!selected) {
+    const reply = "❌ Match not found. Type *MATCHES* to see options.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  await updateState(phone, {
+    currentStep: STEPS.WAITING_FOR_PROPOSAL_MESSAGE,
+    tempData: {
+      ...(state.tempData || {}),
+      selectedMatchId: selected.id,
+      selectedMatchType: selected.type,
+      selectedMatchName: selected.name,
+    },
+  });
+
+  const reply = `✉️ Type your proposal message for *${selected.name}*.\n\nInclude: quantity, quality, delivery availability, and any other details.`;
+  await saveAssistantMessage(phone, reply);
+  return sendLocalizedMessage(phone, reply);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Packaging & Notification Handlers ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handlePackagingGuideIntent(phone, text, state) {
+  const { getPackagingGuide, formatPackagingGuide } = await import("../services/packaging.service.js");
+
+  const commodity = text.replace(/^(packaging|pack\s*guide|packing)/i, "").trim().toLowerCase();
+  if (!commodity) {
+    const reply = "📦 Which product do you need packaging guidance for?\n\nExample: *PACKAGING turmeric* or *PACKAGING rice*";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const guide = await getPackagingGuide(commodity);
+  const formatted = formatPackagingGuide(guide);
+  await saveAssistantMessage(phone, formatted);
+  return sendLocalizedMessage(phone, formatted);
+}
+
+async function handleNotificationsIntent(phone, text, state) {
+  const { getNotificationsForUser, formatNotificationCard } = await import("../services/notification.service.js");
+  const ownerType = state.role === "farmer" ? "Farmer" : state.role === "exporter" ? "Exporter" : "Buyer";
+  const owner = await getOwnerForProduct(phone, ownerType) || await Buyer.findOne({ phone }).lean();
+  if (!owner) {
+    const reply = "❌ Profile not found.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const result = await getNotificationsForUser(owner._id, {});
+  if (!result.notifications.length) {
+    const reply = "🔔 No notifications yet.";
+    await saveAssistantMessage(phone, reply);
+    return sendLocalizedMessage(phone, reply);
+  }
+
+  const cards = result.notifications.map((n, i) => formatNotificationCard(n, i + 1)).join("\n\n");
+  const reply = `🔔 *Notifications* (${result.total})\n\n${cards}`;
   await saveAssistantMessage(phone, reply);
   return sendLocalizedMessage(phone, reply);
 }

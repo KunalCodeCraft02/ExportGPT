@@ -283,3 +283,157 @@ function normalizeText(value) {
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// ─── AI Match Scoring ────────────────────────────────────────────────────────
+
+export async function findMatchesForProduct(product) {
+  const commodity = product.productName || product.products?.[0] || "";
+  const location = [product.state, product.country].filter(Boolean);
+  const certifications = product.certifications || [];
+
+  const [buyers, exporters] = await Promise.all([
+    Buyer.find(buildApprovedQuery())
+      .where("productsNeeded").in(new RegExp(String(commodity).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))
+      .lean(),
+    Exporter.find(buildApprovedQuery())
+      .where("products").in(new RegExp(String(commodity).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))
+      .lean(),
+  ]);
+
+  const buyerMatches = buyers.map((b) => ({
+    match: b,
+    type: "Buyer",
+    score: calculateMatchScore(product, b, "Buyer"),
+  }));
+
+  const exporterMatches = exporters.map((e) => ({
+    match: e,
+    type: "Exporter",
+    score: calculateMatchScore(product, e, "Exporter"),
+  }));
+
+  return [...buyerMatches, ...exporterMatches]
+    .sort((a, b) => b.score.total - a.score.total)
+    .slice(0, 10);
+}
+
+export async function findMatchesForRequirement(requirement) {
+  const commodity = requirement.commodity || "";
+  const regex = new RegExp(String(commodity).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+  const farmers = await Farmer.find({
+    ...buildApprovedQuery(),
+    products: regex,
+  }).lean();
+
+  return farmers
+    .map((f) => ({
+      match: f,
+      type: "Farmer",
+      score: calculateRequirementMatchScore(requirement, f),
+    }))
+    .sort((a, b) => b.score.total - a.score.total)
+    .slice(0, 10);
+}
+
+export function calculateMatchScore(product, buyer, buyerType) {
+  let total = 0;
+
+  const productCommodity = (product.productName || "").toLowerCase();
+  const buyerProducts = buyerType === "Buyer"
+    ? (buyer.productsNeeded || []).map((p) => p.toLowerCase())
+    : (buyer.products || []).map((p) => p.toLowerCase());
+
+  const commodityMatch = buyerProducts.some((p) =>
+    p.includes(productCommodity) || productCommodity.includes(p)
+  );
+  if (commodityMatch) total += 25;
+
+  const productState = (product.state || "").toLowerCase();
+  const buyerState = (buyer.state || "").toLowerCase();
+  const productCountry = (product.country || "").toLowerCase();
+  const buyerCountry = (buyer.country || "").toLowerCase();
+
+  if (productState && buyerState && productState === buyerState) {
+    total += 20;
+  } else if (productCountry && buyerCountry && productCountry === buyerCountry) {
+    total += 10;
+  }
+
+  if (buyer.verified || buyer.verificationStatus === "approved") {
+    total += 10;
+  }
+
+  if (buyer.overallRating > 0) {
+    total += Math.min(Math.round((buyer.overallRating / 5) * 10), 10);
+  }
+
+  if (buyer.totalDeals > 0) {
+    total += 5;
+  }
+
+  return {
+    total: Math.min(total, 100),
+    commodity: commodityMatch,
+    location: productState === buyerState ? "same_state" : productCountry === buyerCountry ? "same_country" : "different",
+    verified: buyer.verified || buyer.verificationStatus === "approved",
+    rating: buyer.overallRating || 0,
+  };
+}
+
+export function calculateRequirementMatchScore(requirement, farmer) {
+  let total = 0;
+
+  const reqCommodity = (requirement.commodity || "").toLowerCase();
+  const farmerProducts = (farmer.products || []).map((p) => p.toLowerCase());
+
+  const commodityMatch = farmerProducts.some((p) =>
+    p.includes(reqCommodity) || reqCommodity.includes(p)
+  );
+  if (commodityMatch) total += 25;
+
+  if (farmer.verified || farmer.verificationStatus === "approved") {
+    total += 10;
+  }
+
+  if (farmer.overallRating > 0) {
+    total += Math.min(Math.round((farmer.overallRating / 5) * 10), 10);
+  }
+
+  if (farmer.totalDeals > 0) {
+    total += 5;
+  }
+
+  return {
+    total: Math.min(total, 100),
+    commodity: commodityMatch,
+    verified: farmer.verified || farmer.verificationStatus === "approved",
+    rating: farmer.overallRating || 0,
+  };
+}
+
+export function formatMatchResults(matches) {
+  if (!matches.length) {
+    return "❌ No matching buyers/exporters found for this product.";
+  }
+
+  const cards = matches.map((m, i) => formatMatchCard(m, i + 1)).join("\n\n");
+  return `🔍 *AI Matches Found* (${matches.length})\n\n${cards}\n\nReply *SELECT <number>* to send a proposal.`;
+}
+
+export function formatMatchCard(match, index) {
+  const score = match.score;
+  const stars = score.total >= 80 ? "★★★★★" : score.total >= 60 ? "★★★★☆" : score.total >= 40 ? "★★★☆☆" : "★★☆☆☆";
+  const entity = match.match;
+  const name = entity.companyName || entity.name || "Unknown";
+  const location = [entity.state, entity.country].filter(Boolean).join(", ");
+
+  return (
+    `*${index}. ${name}* ${match.type}\n` +
+    `${stars} ${score.total}% match\n` +
+    `📍 ${location || "—"}\n` +
+    (entity.products?.length ? `📦 ${(entity.productsNeeded || entity.products || []).join(", ")}\n` : "") +
+    (score.verified ? "✅ Verified\n" : "") +
+    (score.rating > 0 ? `⭐ Rating: ${score.rating}/5\n` : "")
+  );
+}

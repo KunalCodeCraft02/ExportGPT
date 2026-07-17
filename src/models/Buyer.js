@@ -19,6 +19,13 @@ const buyerSchema = new mongoose.Schema(
     targetPrice: { type: String, trim: true },
     deliveryTimeline: { type: String, trim: true },
     paymentTerms: { type: String, trim: true },
+    tradeScoreId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TradeScore",
+      default: null,
+    },
+    overallRating: { type: Number, default: 0, min: 0, max: 5 },
+    totalDeals: { type: Number, default: 0 },
     verified: { type: Boolean, default: false },
     verificationStatus: {
       type: String,

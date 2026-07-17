@@ -6,7 +6,6 @@ import session from "express-session";
 import connectDB from "./config/db.js";
 import whatsappRoutes from "./routes/whatsapp.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
-import { scheduleDailyMarketUpdate } from "./jobs/dailyMarketUpdate.job.js";
 import logger from "./utils/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,7 +76,6 @@ async function findAvailablePort(startPort) {
 
 const startServer = async () => {
   await connectDB();
-  scheduleDailyMarketUpdate();
 
   const availablePort = await findAvailablePort(PORT);
   app.listen(availablePort, () => {

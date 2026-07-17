@@ -1,0 +1,30 @@
+<%- include('../partials/admin-shell', { title }) %>
+<div class="container-fluid">
+  <h1 class="mb-4">Deals</h1>
+  <div class="mb-3">
+    <a href="/admin/deals?status=all" class="btn btn-sm <%= status === 'all' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+    <% statuses.filter(s => s !== 'all').forEach(function(s) { %>
+      <a href="/admin/deals?status=<%= s %>" class="btn btn-sm <%= status === s ? 'btn-primary' : 'btn-outline-primary' %>"><%= s.replace(/_/g, ' ') %></a>
+    <% }); %>
+  </div>
+  <p>Total: <%= total %></p>
+  <table class="table table-striped">
+    <thead><tr><th>Date</th><th>Status</th><th>Price</th><th>Quantity</th><th>Seller</th><th>Buyer</th></tr></thead>
+    <tbody>
+      <% deals.forEach(function(d) { %>
+        <tr>
+          <td><%= new Date(d.createdAt).toLocaleDateString('en-IN') %></td>
+          <td><span class="badge bg-<%= d.status === 'completed' ? 'success' : d.status === 'cancelled' ? 'danger' : 'info' %>"><%= d.status.replace(/_/g, ' ') %></span></td>
+          <td><%= d.agreedPrice || '—' %></td>
+          <td><%= d.totalQuantity || '—' %></td>
+          <td><%= d.sellerType %></td>
+          <td><%= d.buyerType %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (hasNextPage) { %>
+    <a href="/admin/deals?status=<%= status %>&page=<%= page + 1 %>" class="btn btn-outline-primary">Next Page</a>
+  <% } %>
+</div>
+<%- include('../partials/admin-shell-end') %>

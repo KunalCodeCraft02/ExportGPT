@@ -14,8 +14,14 @@ import {
   approveProduct,
   rejectProduct,
   deleteProduct,
+  showProposals,
+  showDeals,
+  showRequirements,
+  showRatings,
+  showTradeScores,
+  showPackagingGuides,
+  showNotifications,
 } from "../controllers/admin.controller.js";
-import { diagnoseApiHealth } from "../services/marketPrice.service.js";
 import logger from "../utils/logger.js";
 
 const router = express.Router();
@@ -43,16 +49,12 @@ router.get("/products", requireAdmin, showProducts);
 router.post("/products/:id/approve", requireAdmin, approveProduct);
 router.post("/products/:id/reject", requireAdmin, rejectProduct);
 router.post("/products/:id/delete", requireAdmin, deleteProduct);
-
-// Diagnostic endpoint for API health check
-router.get("/diagnostics", requireAdmin, async (req, res) => {
-  try {
-    const results = await diagnoseApiHealth();
-    res.json(results);
-  } catch (error) {
-    logger.error(`Diagnostics failed: ${error.message}`);
-    res.status(500).json({ error: error.message });
-  }
-});
+router.get("/proposals", requireAdmin, showProposals);
+router.get("/deals", requireAdmin, showDeals);
+router.get("/requirements", requireAdmin, showRequirements);
+router.get("/ratings", requireAdmin, showRatings);
+router.get("/trade-scores", requireAdmin, showTradeScores);
+router.get("/packaging-guides", requireAdmin, showPackagingGuides);
+router.get("/notifications", requireAdmin, showNotifications);
 
 export default router;
